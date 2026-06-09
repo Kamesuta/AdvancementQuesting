@@ -1,0 +1,71 @@
+import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core'
+
+export const quests = sqliteTable('quests', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  description: text('description'),
+  icon: text('icon'),
+  category: text('category'),
+  prerequisites: text('prerequisites', { mode: 'json' }).$type<string[]>().notNull().default([]),
+  conditions: text('conditions', { mode: 'json' }).$type<object[]>().notNull().default([]),
+  rewards: text('rewards', { mode: 'json' }).$type<object[]>().notNull().default([]),
+  mapPosition: text('map_position', { mode: 'json' }).$type<{ x: number; y: number } | null>(),
+  customButtons: text('custom_buttons', { mode: 'json' }).$type<object[]>().notNull().default([]),
+  status: text('status', { enum: ['draft', 'proposed', 'public', 'hidden'] }).notNull().default('draft'),
+  creatorUuid: text('creator_uuid'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+})
+
+export const playerProgress = sqliteTable('player_progress', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  playerUuid: text('player_uuid').notNull(),
+  questId: text('quest_id').notNull().references(() => quests.id),
+  progress: text('progress', { mode: 'json' }).$type<object[]>().notNull().default([]),
+  completed: integer('completed', { mode: 'boolean' }).notNull().default(false),
+  rewardClaimed: integer('reward_claimed', { mode: 'boolean' }).notNull().default(false),
+  startedAt: integer('started_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  completedAt: integer('completed_at', { mode: 'timestamp' }),
+}, (t) => [
+  uniqueIndex('player_quest_unique').on(t.playerUuid, t.questId),
+])
+
+export const questProposals = sqliteTable('quest_proposals', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  questId: text('quest_id').notNull().references(() => quests.id),
+  proposerUuid: text('proposer_uuid').notNull(),
+  proposerName: text('proposer_name').notNull(),
+  status: text('status', { enum: ['pending', 'approved', 'rejected'] }).notNull().default('pending'),
+  votesUp: integer('votes_up').notNull().default(0),
+  votesDown: integer('votes_down').notNull().default(0),
+  rejectReason: text('reject_reason'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+})
+
+export const proposalVotes = sqliteTable('proposal_votes', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  proposalId: integer('proposal_id').notNull().references(() => questProposals.id),
+  playerUuid: text('player_uuid').notNull(),
+  voteType: text('vote_type', { enum: ['up', 'down'] }).notNull(),
+  votedAt: integer('voted_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('proposal_player_unique').on(t.proposalId, t.playerUuid),
+])
+
+export const playerSessions = sqliteTable('player_sessions', {
+  sessionToken: text('session_token').primaryKey(),
+  playerUuid: text('player_uuid').notNull(),
+  playerName: text('player_name').notNull(),
+  ipAddress: text('ip_address'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+})
+
+export const authCodes = sqliteTable('auth_codes', {
+  code: text('code').primaryKey(),
+  playerUuid: text('player_uuid').notNull(),
+  playerName: text('player_name').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+  used: integer('used', { mode: 'boolean' }).notNull().default(false),
+})
