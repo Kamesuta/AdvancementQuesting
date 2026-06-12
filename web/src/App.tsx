@@ -1,9 +1,9 @@
 import { Routes, Route, NavLink, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/api/auth.js'
-import { ApiError } from '@/api/client.js'
 import QuestListPage from '@/pages/QuestList.js'
 import LoginPage from '@/pages/Login.js'
+import EditorPage from '@/pages/Editor.js'
 
 function Nav() {
   const queryClient = useQueryClient()
@@ -66,14 +66,25 @@ function Nav() {
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
-      <Nav />
-      <main className="max-w-5xl mx-auto px-4 py-8">
-        <Routes>
-          <Route path="/" element={<QuestListPage />} />
-          <Route path="/login" element={<LoginPage />} />
-        </Routes>
-      </main>
-    </div>
+    <Routes>
+      {/* エディタはフルスクリーンUIのため Nav/main の外に置く */}
+      <Route path="/editor" element={<EditorPage />} />
+
+      {/* それ以外は共通レイアウト (Nav + コンテンツ) */}
+      <Route
+        path="*"
+        element={
+          <div className="min-h-screen bg-gray-950 text-gray-100">
+            <Nav />
+            <main className="max-w-5xl mx-auto px-4 py-8">
+              <Routes>
+                <Route path="/" element={<QuestListPage />} />
+                <Route path="/login" element={<LoginPage />} />
+              </Routes>
+            </main>
+          </div>
+        }
+      />
+    </Routes>
   )
 }

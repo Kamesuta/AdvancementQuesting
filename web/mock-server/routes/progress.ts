@@ -19,13 +19,15 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
 
 // GET /api/progress/:questId
 router.get('/:questId', requireAuth, async (req: AuthRequest, res) => {
+  // Express 5 の型定義では params が string | string[] になるため明示的にキャスト
+  const questId = String(req.params['questId'])
   const row = await db
     .select()
     .from(playerProgress)
     .where(
       and(
         eq(playerProgress.playerUuid, req.playerUuid!),
-        eq(playerProgress.questId, req.params.questId),
+        eq(playerProgress.questId, questId),
       ),
     )
     .get()
@@ -40,13 +42,14 @@ router.get('/:questId', requireAuth, async (req: AuthRequest, res) => {
 
 // POST /api/progress/:questId/claim — 報酬受け取り
 router.post('/:questId/claim', requireAuth, async (req: AuthRequest, res) => {
+  const questId = String(req.params['questId'])
   const progress = await db
     .select()
     .from(playerProgress)
     .where(
       and(
         eq(playerProgress.playerUuid, req.playerUuid!),
-        eq(playerProgress.questId, req.params.questId),
+        eq(playerProgress.questId, questId),
       ),
     )
     .get()
@@ -72,7 +75,7 @@ router.post('/:questId/claim', requireAuth, async (req: AuthRequest, res) => {
     .where(eq(playerProgress.id, progress.id))
 
   // モック: 報酬内容を返す
-  const quest = await db.select().from(quests).where(eq(quests.id, req.params.questId)).get()
+  const quest = await db.select().from(quests).where(eq(quests.id, questId)).get()
   res.json({ claimed: true, rewards: quest?.rewards ?? [] })
 })
 

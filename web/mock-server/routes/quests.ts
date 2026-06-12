@@ -24,7 +24,9 @@ router.get('/', async (req, res) => {
 
 // GET /api/quests/:id
 router.get('/:id', async (req, res) => {
-  const quest = await db.select().from(quests).where(eq(quests.id, req.params.id)).get()
+  // Express 5 の型定義では params が string | string[] になるため明示的にキャスト
+  const id = String(req.params['id'])
+  const quest = await db.select().from(quests).where(eq(quests.id, id)).get()
   if (!quest) {
     res.status(404).json({ error: 'Quest not found' })
     return
@@ -59,25 +61,24 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
 
 // PUT /api/quests/:id
 router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
-  const existing = await db.select().from(quests).where(eq(quests.id, req.params.id)).get()
+  const id = String(req.params['id'])
+  const existing = await db.select().from(quests).where(eq(quests.id, id)).get()
   if (!existing) {
     res.status(404).json({ error: 'Quest not found' })
     return
   }
 
   const body = req.body
-  const updated = {
-    ...body,
-    updatedAt: new Date(),
-  }
+  const updated = { ...body, updatedAt: new Date() }
 
-  await db.update(quests).set(updated).where(eq(quests.id, req.params.id))
+  await db.update(quests).set(updated).where(eq(quests.id, id))
   res.json({ ...existing, ...updated })
 })
 
 // DELETE /api/quests/:id
-router.delete('/:id', requireAuth, async (_req, res) => {
-  await db.delete(quests).where(eq(quests.id, _req.params.id))
+router.delete('/:id', requireAuth, async (req, res) => {
+  const id = String(req.params['id'])
+  await db.delete(quests).where(eq(quests.id, id))
   res.status(204).send()
 })
 

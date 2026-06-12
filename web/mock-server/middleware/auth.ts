@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express'
 import { db } from '../db/client.js'
 import { playerSessions } from '../db/schema.js'
-import { eq, gt } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 
 export interface AuthRequest extends Request {
   playerUuid?: string

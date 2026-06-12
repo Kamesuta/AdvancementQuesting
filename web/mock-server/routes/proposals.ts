@@ -74,7 +74,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
 
 // POST /api/proposals/:id/vote
 router.post('/:id/vote', requireAuth, async (req: AuthRequest, res) => {
-  const proposalId = parseInt(req.params.id, 10)
+  const proposalId = parseInt(String(req.params['id']), 10)
   const { type } = req.body as { type: 'up' | 'down' }
 
   const proposal = await db
@@ -132,7 +132,7 @@ router.post('/:id/vote', requireAuth, async (req: AuthRequest, res) => {
 
 // POST /api/proposals/:id/approve
 router.post('/:id/approve', requireAuth, async (req, res) => {
-  const proposalId = parseInt(req.params.id, 10)
+  const proposalId = parseInt(String(req.params['id']), 10)
   const proposal = await db
     .select()
     .from(questProposals)
@@ -159,7 +159,7 @@ router.post('/:id/approve', requireAuth, async (req, res) => {
 
 // POST /api/proposals/:id/reject
 router.post('/:id/reject', requireAuth, async (req, res) => {
-  const proposalId = parseInt(req.params.id, 10)
+  const proposalId = parseInt(String(req.params['id']), 10)
   const { reason } = req.body as { reason?: string }
 
   const proposal = await db
