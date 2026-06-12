@@ -226,7 +226,7 @@ export function QuestEditorModal({
             className="flex-1 bg-transparent text-xl font-bold border-b border-transparent focus:border-blue-400 outline-none placeholder-gray-500"
             placeholder="クエストのタイトル"
           />
-          <button onClick={close} className="text-gray-400 p-1">
+          <button onClick={close} aria-label="閉じる" className="text-gray-400 p-1">
             <X size={24} />
           </button>
         </div>
@@ -318,7 +318,7 @@ export function QuestEditorModal({
               </button>
             </div>
           )}
-          <button onClick={close} className="text-gray-400 hover:text-red-400">
+          <button onClick={close} aria-label="閉じる" className="text-gray-400 hover:text-red-400">
             <X size={28} />
           </button>
         </div>

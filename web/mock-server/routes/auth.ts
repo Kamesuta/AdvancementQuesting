@@ -49,10 +49,12 @@ router.get('/me', requireAuth, (req: AuthRequest, res) => {
   res.json({ playerUuid: req.playerUuid, playerName: req.playerName, role: req.playerRole ?? 'player' })
 })
 
-// DELETE /api/auth/logout — ログアウト
+// DELETE /api/auth/logout — ログアウト (expiresAt を過去日時にして無効化)
 router.delete('/logout', requireAuth, async (req: AuthRequest, res) => {
   const token = req.headers.authorization!.slice(7)
-  await db.delete(playerSessions).where(eq(playerSessions.sessionToken, token))
+  await db.update(playerSessions)
+    .set({ expiresAt: new Date(0) })
+    .where(eq(playerSessions.sessionToken, token))
   res.status(204).send()
 })
 

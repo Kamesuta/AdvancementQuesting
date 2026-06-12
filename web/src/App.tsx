@@ -1,11 +1,24 @@
+import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/api/auth.js'
 import { AuthContext } from '@/contexts/AuthContext.js'
-import { useEditor } from '@/contexts/EditorContext.js'
+import { EditorContext } from '@/contexts/EditorContext.js'
 import EditorPage from '@/pages/Editor.js'
 import type { Role } from '@/types/auth.js'
 
-function Nav() {
+// ---------------------------------------------------------------------------
+// ナビバー
+// ---------------------------------------------------------------------------
+
+interface NavProps {
+  proposalMode: boolean
+  setProposalMode: (v: boolean) => void
+  proposalCount: number
+  submitProposals: () => void
+  submitting: boolean
+}
+
+function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, submitting }: NavProps) {
   const { data: me } = useQuery({
     queryKey: ['me'],
     queryFn: () => authApi.me(),
@@ -15,8 +28,6 @@ function Nav() {
 
   const role: Role = me?.role ?? 'player'
   const isEditor = role === 'editor' || role === 'admin'
-
-  const { proposalMode, setProposalMode, proposalCount, submitProposals, submitting } = useEditor()
 
   return (
     <AuthContext.Provider value={{ me, role, isEditor }}>
@@ -131,10 +142,42 @@ function Nav() {
   )
 }
 
+// ---------------------------------------------------------------------------
+// App ルート: 提案状態をここで管理して Nav と EditorPage 両方に渡す
+// ---------------------------------------------------------------------------
+
 export default function App() {
+  const queryClient = useQueryClient()
+
+  const [proposalMode, setProposalMode] = useState(false)
+  const [proposalCount, setProposalCount] = useState(0)
+  const [submitting, setSubmitting] = useState(false)
+  // submitProposals の実体は EditorPage が差し込む
+  const [submitProposals, setSubmitProposals] = useState<() => void>(() => () => {})
+
+  const editorContextValue = {
+    proposalMode,
+    setProposalMode,
+    proposalCount,
+    setProposalCount,
+    submitProposals,
+    setSubmitProposals,
+    submitting,
+    setSubmitting,
+    queryClient,
+  }
+
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
-      <Nav />
-    </div>
+    <EditorContext.Provider value={editorContextValue}>
+      <div className="h-screen flex flex-col overflow-hidden">
+        <Nav
+          proposalMode={proposalMode}
+          setProposalMode={setProposalMode}
+          proposalCount={proposalCount}
+          submitProposals={submitProposals}
+          submitting={submitting}
+        />
+      </div>
+    </EditorContext.Provider>
   )
 }

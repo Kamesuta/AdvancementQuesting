@@ -12,7 +12,9 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.80.6",
@@ -35,6 +37,7 @@
     "better-sqlite3": "^11.10.0",
     "concurrently": "^9.1.2",
     "cors": "^2.8.5",
+    "cross-env": "^10.1.0",
     "dotenv": "^16.5.0",
     "drizzle-kit": "^0.31.1",
     "drizzle-orm": "^0.43.1",

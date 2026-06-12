@@ -17,6 +17,8 @@ export const ToolButton: FC<ToolButtonProps> = ({ icon: Icon, active, onClick, t
   <div className="relative group">
     <button
       onClick={onClick}
+      title={tooltip}
+      aria-label={tooltip}
       className={[
         'w-10 h-10 flex items-center justify-center mb-2 border-2',
         active

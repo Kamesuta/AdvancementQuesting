@@ -1,5 +1,6 @@
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { db } from './client.js'
-import { quests, authCodes, playerSessions, playerProgress } from './schema.js'
+import { quests, authCodes, playerSessions, playerProgress, questProposals, proposalVotes } from './schema.js'
 import { randomUUID } from 'crypto'
 
 const DEMO_PLAYER_UUID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
@@ -16,7 +17,16 @@ const PLAYER_NAME = 'Alex'
 const PLAYER_TOKEN = 'demo-player-token'
 
 async function seed() {
+  migrate(db, { migrationsFolder: './mock-server/db/migrations' })
   console.log('Seeding database...')
+
+  // 既存データを全削除 (外部キー制約に配慮した順序)
+  await db.delete(proposalVotes)
+  await db.delete(questProposals)
+  await db.delete(playerProgress)
+  await db.delete(authCodes)
+  await db.delete(playerSessions)
+  await db.delete(quests)
 
   // クエストデータ
   const questData = [
@@ -109,7 +119,10 @@ async function seed() {
       role: 'player' as const,
       expiresAt,
     },
-  ]).onConflictDoNothing()
+  ]).onConflictDoUpdate({
+    target: playerSessions.sessionToken,
+    set: { expiresAt },
+  })
 
   // デモ用認証コード
   const codeExpiresAt = new Date(Date.now() + 5 * 60 * 1000)

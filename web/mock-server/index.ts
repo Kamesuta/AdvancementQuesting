@@ -8,6 +8,7 @@ import authRoutes from './routes/auth.js'
 import questRoutes from './routes/quests.js'
 import progressRoutes from './routes/progress.js'
 import proposalRoutes from './routes/proposals.js'
+import { playerSessions } from './db/schema.js'
 
 config()
 
@@ -28,6 +29,17 @@ app.use('/api/proposals', proposalRoutes)
 // ヘルスチェック
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
+// テスト用: デモセッションを復元する (本番では無効)
+app.post('/api/test/restore-sessions', async (_req, res) => {
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  await db.insert(playerSessions).values([
+    { sessionToken: 'demo-session-token-for-development', playerUuid: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', playerName: 'Steve', role: 'editor' as const, expiresAt },
+    { sessionToken: 'demo-editor-token', playerUuid: 'bbbbbbbb-cccc-dddd-eeee-ffffffffffff', playerName: 'Editor', role: 'editor' as const, expiresAt },
+    { sessionToken: 'demo-player-token', playerUuid: 'cccccccc-dddd-eeee-ffff-aaaaaaaaaaaa', playerName: 'Alex', role: 'player' as const, expiresAt },
+  ]).onConflictDoUpdate({ target: playerSessions.sessionToken, set: { expiresAt } })
+  res.json({ ok: true })
 })
 
 app.listen(port, () => {

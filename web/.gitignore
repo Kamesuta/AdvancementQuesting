@@ -145,3 +145,6 @@ dist
 
 # スクリーンショット (確認用一時ファイル)
 screenshot-*.png
+
+# テスト結果
+test-results/

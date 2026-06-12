@@ -12,7 +12,7 @@ import { ItemSelectorModal } from '@/components/editor/modals/ItemSelectorModal.
 import { RewardTableModal } from '@/components/editor/modals/RewardTableModal.js'
 import { LoginModal } from '@/components/LoginModal.js'
 import { useAuth } from '@/contexts/AuthContext.js'
-import { EditorContext } from '@/contexts/EditorContext.js'
+import { useEditor } from '@/contexts/EditorContext.js'
 import { proposalsApi } from '@/api/proposals.js'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/api/auth.js'
@@ -75,16 +75,21 @@ const CLICK_MAX_DIST = 5
 export default function EditorPage() {
   const { isEditor, me } = useAuth()
   const queryClient = useQueryClient()
+  const {
+    proposalMode, setProposalMode,
+    setProposalCount, setSubmitting,
+  } = useEditor()
 
   // ---- マップ状態 ----
   const [nodes, setNodes] = useState<EditorNode[]>(INITIAL_NODES)
   const [edges, setEdges] = useState<EditorEdge[]>(INITIAL_EDGES)
 
-  // ---- 提案モード ----
-  const [proposalMode, setProposalMode] = useState(false)
+  // ---- 提案ドラフト (ローカル) ----
   const [proposalNodes, setProposalNodes] = useState<EditorNode[]>([])
   const [proposalEdges, setProposalEdges] = useState<EditorEdge[]>([])
-  const [submitting, setSubmitting] = useState(false)
+
+  // proposalNodes が変わるたびに App 側のカウントを同期
+  useEffect(() => { setProposalCount(proposalNodes.length) }, [proposalNodes.length, setProposalCount])
 
   // 他者の pending 提案を取得
   const { data: existingProposals } = useQuery({
@@ -259,10 +264,12 @@ export default function EditorPage() {
   }, [])
 
   // ---------------------------------------------------------------------------
-  // 提案送信
+  // 提案送信 (App側のコンテキストに登録)
   // ---------------------------------------------------------------------------
 
-  const submitProposals = async () => {
+  const { setSubmitProposals } = useEditor()
+
+  const submitProposals = useCallback(async () => {
     if (proposalNodes.length === 0) return
     setSubmitting(true)
     try {
@@ -290,7 +297,14 @@ export default function EditorPage() {
     } finally {
       setSubmitting(false)
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proposalNodes, proposalEdges, queryClient, setProposalMode, setSubmitting])
+
+  // submitProposals が変わるたびに App 側へ登録
+  // useState の setter は関数を渡すと updater として呼ぶため () => fn の形で包む
+  useEffect(() => {
+    setSubmitProposals(() => submitProposals)
+  }, [submitProposals, setSubmitProposals])
 
   const showToast = (label: string) => {
     setToastLabel(label)
@@ -306,6 +320,7 @@ export default function EditorPage() {
   const handleLogout = async () => {
     try { await authApi.logout() } catch (_) {}
     localStorage.removeItem('token')
+    queryClient.setQueryData(['me'], null)
     queryClient.clear()
     setProposalMode(false)
   }
@@ -517,9 +532,8 @@ export default function EditorPage() {
   }
 
   const handleNodeMouseUp = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    // ドラッグ中だった場合はドラッグ終了のみ (openNode は handleMouseUp に委譲)
-    if (draggingNode) setDraggingNode(null)
+    // stopPropagation しない — キャンバスの handleMouseUp にクリック判定を委譲
+    if (draggingNode) { e.stopPropagation(); setDraggingNode(null) }
   }
 
   // ---------------------------------------------------------------------------
@@ -724,23 +738,10 @@ export default function EditorPage() {
   const showSettings   = isEditor
 
   // ---------------------------------------------------------------------------
-  // EditorContext 値
-  // ---------------------------------------------------------------------------
-
-  const editorContextValue = {
-    proposalMode,
-    setProposalMode,
-    proposalCount: proposalNodes.length,
-    submitProposals,
-    submitting,
-  }
-
-  // ---------------------------------------------------------------------------
   // レンダリング
   // ---------------------------------------------------------------------------
 
   return (
-    <EditorContext.Provider value={editorContextValue}>
       <div
         className="flex-1 relative flex overflow-hidden select-none min-h-0"
         style={{ fontFamily: '"Minecraftia", "Courier New", Courier, monospace' }}
@@ -762,7 +763,8 @@ export default function EditorPage() {
           {me ? (
             <button
               onClick={handleLogout}
-              title={`${me.playerName} — クリックでログアウト`}
+              title="ログアウト"
+              aria-label="ログアウト"
               className="mt-1 w-10 h-10 flex items-center justify-center border-2 relative"
               style={{
                 backgroundColor: '#6B6B6B',
@@ -994,7 +996,6 @@ export default function EditorPage() {
           <LoginModal close={() => setShowLoginModal(false)} />
         )}
       </div>
-    </EditorContext.Provider>
   )
 }
 
