@@ -19,6 +19,7 @@
  *  12. コードログイン: ログインモーダルからコード入力でログイン
  *  13. 未ログイン: クエストクリックで読み取り専用モーダルが開く
  *  14. 保存永続化: 編集者がノードを移動して保存後リロードしても位置が保持される
+ *  15. ログアウト→再ログインを繰り返しても正常にロールが表示される
  */
 
 import { test, expect, type Page } from '@playwright/test'
@@ -27,10 +28,10 @@ import { test, expect, type Page } from '@playwright/test'
 // ヘルパー
 // ---------------------------------------------------------------------------
 
-/** localStorage にトークンを注入してページをリロード */
+/** /api/auth/quick でセッションをupsertしてからトークンを注入してリロード */
 async function loginAs(page: Page, token: 'demo-editor-token' | 'demo-player-token') {
-  // セッションが削除されている可能性があるため、常に復元してからログイン
-  await page.request.post('http://localhost:3001/api/test/restore-sessions')
+  // quick エンドポイントでDBにセッションをupsert (ログアウト後でも確実に有効になる)
+  await page.request.post('http://localhost:3001/api/auth/quick', { data: { token } })
   await page.evaluate((t) => localStorage.setItem('token', t), token)
   await page.reload()
   // ロールバッジが表示されるまで待つ
@@ -341,12 +342,40 @@ test('保存永続化: 編集者がノード移動後に保存するとリロー
   // 保存完了まで待つ (トーストが出る)
   await expect(page.getByText('保存しました')).toBeVisible({ timeout: 5000 })
 
-  // リロード後もログイン状態を維持して位置確認
-  await page.request.post('http://localhost:3001/api/test/restore-sessions')
+  // リロード後もログイン状態を維持して位置確認 (quick でセッション復元)
+  await page.request.post('http://localhost:3001/api/auth/quick', { data: { token: 'demo-editor-token' } })
   await page.reload()
   await expect(page.locator('nav').getByText('編集者')).toBeVisible({ timeout: 8000 })
 
   // ノードが元の 100px の位置にない (移動後の位置になっている)
   const styleAfter = await page.locator('[data-node-id="00000000-0000-0000-0000-000000000001"]').getAttribute('style')
   expect(styleAfter).not.toContain('left: 100px')
+})
+
+// 15. ログアウト→再ログインの繰り返し
+test('ログアウト→再ログインを繰り返しても正常にロールが表示される', async ({ page }) => {
+  // 編集者でログイン → ログアウト → 再ログイン を2回繰り返す
+  for (let i = 0; i < 2; i++) {
+    // ログインモーダルを開いてクイックログイン (APIでセッション作成)
+    await page.locator('button[title="ログイン"]').click()
+    await expect(page.getByPlaceholder('123456')).toBeVisible({ timeout: 3000 })
+    await page.getByText('✏️ 編集者としてログイン').click()
+    // ロールバッジが出るまで待つ
+    await expect(page.locator('nav').getByText('編集者')).toBeVisible({ timeout: 8000 })
+    // 保存ボタンも表示されている
+    await expect(page.getByText('💾 保存')).toBeVisible()
+
+    // ログアウト
+    await page.locator('button[title="ログアウト"]').click()
+    await expect(page.locator('nav').getByText('編集者')).not.toBeVisible({ timeout: 5000 })
+    // 保存ボタンも消えている
+    await expect(page.getByText('💾 保存')).not.toBeVisible()
+  }
+
+  // 最後にプレイヤーでログインしても正常に動く
+  await page.locator('button[title="ログイン"]').click()
+  await expect(page.getByPlaceholder('123456')).toBeVisible({ timeout: 3000 })
+  await page.getByText('🎮 プレイヤーとしてログイン').click()
+  await expect(page.locator('nav').getByText('プレイヤー')).toBeVisible({ timeout: 8000 })
+  await expect(page.getByText('クエスト追加を提案する')).toBeVisible()
 })

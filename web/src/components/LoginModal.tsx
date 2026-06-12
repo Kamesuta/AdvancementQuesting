@@ -20,19 +20,16 @@ export function LoginModal({ close }: LoginModalProps) {
     return () => window.removeEventListener('keydown', onKey)
   }, [close])
 
-  const doLogin = async (token?: string) => {
+  const doLogin = async (quickToken?: string) => {
     setError(null)
-    if (token) {
-      localStorage.setItem('token', token)
-      queryClient.invalidateQueries({ queryKey: ['me'] })
-      close()
-      return
-    }
     setLoading(true)
     try {
-      const res = await authApi.loginWithCode({ code })
+      const res = quickToken
+        ? await authApi.loginWithQuickToken(quickToken)
+        : await authApi.loginWithCode({ code })
       localStorage.setItem('token', res.token)
-      queryClient.invalidateQueries({ queryKey: ['me'] })
+      // setQueryData で直接キャッシュを更新 → enabled=false でも Nav が即座に反応する
+      queryClient.setQueryData(['me'], { playerUuid: res.playerUuid, playerName: res.playerName, role: res.role })
       close()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'ログインに失敗しました')
