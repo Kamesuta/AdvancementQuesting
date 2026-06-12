@@ -1,42 +1,66 @@
-import { ITEM_TYPES } from '../constants.js'
+import { useState, useMemo } from 'react'
 import { ItemIcon } from '../ItemIcon.js'
 import { useIsMobile } from '@/hooks/useIsMobile.js'
+import { useMcItems, getItemName } from '@/hooks/useMcData.js'
 
 interface ItemSelectorModalProps {
   close: () => void
   onSelect: (itemType: string) => void
 }
 
-/**
- * Minecraft のインベントリ風アイテム選択モーダル
- * スマホでは全画面グリッド、デスクトップでは中央ダイアログ
- */
 export function ItemSelectorModal({ close, onSelect }: ItemSelectorModalProps) {
   const isMobile = useIsMobile()
-  const itemKeys = Object.keys(ITEM_TYPES)
-  const dummyCount = Math.max(0, 24 - itemKeys.length)
+  const [search, setSearch] = useState('')
+  const { items, isLoading, lang } = useMcItems()
 
-  const grid = (cols: number) => (
+  const filtered = useMemo(() => {
+    if (!items) return []
+    const q = search.toLowerCase()
+    if (!q) return items
+    return items.filter(
+      (item) =>
+        item.id.includes(q) ||
+        item.name.toLowerCase().includes(q),
+    )
+  }, [items, search])
+
+  const cols = isMobile ? 6 : 8
+
+  const grid = (
     <div
-      className={`bg-[#8B8B8B] border-t-[#3B3B3B] border-l-[#3B3B3B] border-b-[#C6C6C6] border-r-[#C6C6C6] border-2 p-2 overflow-y-auto`}
-      style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 2.5rem)`, gap: '4px' }}
+      className="bg-[#8B8B8B] border-t-[#3B3B3B] border-l-[#3B3B3B] border-b-[#C6C6C6] border-r-[#C6C6C6] border-2 p-2 overflow-y-auto flex-1"
+      style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 2.5rem)`, gap: '4px', alignContent: 'start' }}
     >
-      {itemKeys.map((key) => (
-        <div
-          key={key}
-          onClick={() => onSelect(key)}
-          className="w-10 h-10 bg-[#C6C6C6] border-t-white border-l-white border-b-[#555555] border-r-[#555555] border-2 flex items-center justify-center cursor-pointer active:bg-gray-300"
-          title={ITEM_TYPES[key]?.name}
-        >
-          <ItemIcon type={key} size={24} />
-        </div>
-      ))}
-      {Array.from({ length: dummyCount }).map((_, i) => (
-        <div
-          key={`empty-${i}`}
-          className="w-10 h-10 bg-[#8B8B8B] border-t-[#555555] border-l-[#555555] border-b-white border-r-white border-2"
-        />
-      ))}
+      {isLoading ? (
+        <div className="col-span-6 text-center text-sm text-black py-8">ロード中...</div>
+      ) : filtered.length === 0 ? (
+        <div className="col-span-6 text-center text-sm text-black py-8">見つかりません</div>
+      ) : (
+        filtered.map((item) => (
+          <div
+            key={item.id}
+            onClick={() => onSelect(item.id)}
+            className="w-10 h-10 bg-[#C6C6C6] border-t-white border-l-white border-b-[#555555] border-r-[#555555] border-2 flex items-center justify-center cursor-pointer active:bg-gray-300"
+            title={`${item.name} (${item.id})`}
+          >
+            <ItemIcon type={item.id} size={24} />
+          </div>
+        ))
+      )}
+    </div>
+  )
+
+  const searchBar = (
+    <div className="shrink-0 px-1 py-2">
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="検索..."
+        autoFocus
+        className="w-full bg-[#1e1f29] border border-gray-500 text-white text-sm px-3 py-1.5 outline-none focus:border-blue-400"
+        style={{ fontFamily: '"Courier New", monospace' }}
+      />
     </div>
   )
 
@@ -57,8 +81,9 @@ export function ItemSelectorModal({ close, onSelect }: ItemSelectorModalProps) {
             ✕
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-3">
-          {grid(6)}
+        {searchBar}
+        <div className="flex-1 overflow-hidden flex flex-col px-1 pb-2">
+          {grid}
         </div>
       </div>
     )
@@ -70,14 +95,19 @@ export function ItemSelectorModal({ close, onSelect }: ItemSelectorModalProps) {
       onClick={close}
     >
       <div
-        className="bg-[#C6C6C6] border-t-white border-l-white border-b-[#555555] border-r-[#555555] border-4 p-4 shadow-2xl flex flex-col w-[500px]"
+        className="bg-[#C6C6C6] border-t-white border-l-white border-b-[#555555] border-r-[#555555] border-4 p-4 shadow-2xl flex flex-col"
+        style={{ width: '560px', height: '520px' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="text-black font-bold mb-4">アイテムを選択</div>
-        <div className="h-64 overflow-y-auto">
-          {grid(6)}
+        <div className="text-black font-bold mb-2 shrink-0">アイテムを選択</div>
+        {searchBar}
+        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+          {grid}
         </div>
-        <div className="mt-4 flex justify-end">
+        <div className="mt-3 flex justify-between items-center shrink-0">
+          <span className="text-xs text-gray-600">
+            {filtered.length} アイテム
+          </span>
           <button
             onClick={close}
             className="bg-[#C6C6C6] hover:bg-[#D6D6D6] border-t-white border-l-white border-b-[#555555] border-r-[#555555] border-2 px-6 py-1 text-black"

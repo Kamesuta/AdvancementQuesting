@@ -1,24 +1,6 @@
 import type { EditorNode, EditorEdge } from './types.js'
 
 // ---------------------------------------------------------------------------
-// アイテム定義 — アイコン描画に使う色とアイテム名のマッピング
-// ---------------------------------------------------------------------------
-export const ITEM_TYPES: Record<string, { name: string; color: string }> = {
-  book:      { name: 'クエストブック', color: '#8B4513' },
-  diamond:   { name: 'ダイヤモンド',   color: '#55FFFF' },
-  stone:     { name: '石',             color: '#AAAAAA' },
-  grass:     { name: '草ブロック',     color: '#55FF55' },
-  wood:      { name: '原木',           color: '#5c4033' },
-  apple:     { name: 'リンゴ',         color: '#FF5555' },
-  chest:     { name: 'チェスト',       color: '#D2B48C' },
-  gold:      { name: '金ブロック',     color: '#FFAA00' },
-  emerald:   { name: 'エメラルド',     color: '#55FF55' },
-  redstone:  { name: 'レッドストーン', color: '#AA0000' },
-  obsidian:  { name: '黒曜石',         color: '#110b1a' },
-  sword:     { name: '木の剣',         color: '#8b5a2b' },
-}
-
-// ---------------------------------------------------------------------------
 // タスク種別 — クエストの達成条件として選べる種類
 // ---------------------------------------------------------------------------
 export const TASK_TYPES = [
