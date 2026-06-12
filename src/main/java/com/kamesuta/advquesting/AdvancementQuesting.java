@@ -40,8 +40,11 @@ public final class AdvancementQuesting extends JavaPlugin {
         String webUrl = getConfig().getString("web-url", "http://localhost:" + port);
 
         // Javalin HTTP サーバー起動
+        boolean hasWebUi = getClass().getResource("/dist/index.html") != null;
         app = Javalin.create(config -> {
-            config.staticFiles.add("/dist", Location.CLASSPATH);
+            if (hasWebUi) {
+                config.staticFiles.add("/dist", Location.CLASSPATH);
+            }
             // CORS: 開発時の Vite dev server からのアクセスを許可
             config.bundledPlugins.enableCors(cors ->
                 cors.addRule(rule -> rule.anyHost())

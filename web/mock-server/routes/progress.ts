@@ -19,8 +19,8 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
 
 // GET /api/progress/:questId
 router.get('/:questId', requireAuth, async (req: AuthRequest, res) => {
-  // Express 5 の型定義では params が string | string[] になるため明示的にキャスト
-  const questId = String(req.params['questId'])
+  const questId = parseInt(String(req.params['questId']), 10)
+  if (isNaN(questId)) { res.status(400).json({ error: 'Invalid questId' }); return }
   const row = await db
     .select()
     .from(playerProgress)
@@ -42,7 +42,8 @@ router.get('/:questId', requireAuth, async (req: AuthRequest, res) => {
 
 // POST /api/progress/:questId/claim — 報酬受け取り
 router.post('/:questId/claim', requireAuth, async (req: AuthRequest, res) => {
-  const questId = String(req.params['questId'])
+  const questId = parseInt(String(req.params['questId']), 10)
+  if (isNaN(questId)) { res.status(400).json({ error: 'Invalid questId' }); return }
   const progress = await db
     .select()
     .from(playerProgress)

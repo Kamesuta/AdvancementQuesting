@@ -47,6 +47,12 @@
         <directory>src/main/resources</directory>
         <filtering>true</filtering>
       </resource>
+      <!-- web/dist が存在する場合は /dist としてクラスパスに含める -->
+      <resource>
+        <directory>web/dist</directory>
+        <targetPath>dist</targetPath>
+        <filtering>false</filtering>
+      </resource>
     </resources>
   </build>
 

@@ -11,7 +11,7 @@ export function createBot(username) {
       host: MC_HOST,
       port: MC_PORT,
       username,
-      version: '1.21.1',
+      version: '1.21.11',
       auth: 'offline',
     })
     bot.once('spawn', () => resolve(bot))

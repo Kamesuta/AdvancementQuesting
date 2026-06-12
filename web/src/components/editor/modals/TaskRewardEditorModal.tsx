@@ -70,11 +70,9 @@ export function TaskRewardEditorModal({
   const isMobile = useIsMobile()
   const items = category === 'task' ? node.tasks : node.rewards
   const item = items.find((i) => i.id === itemId)
-  const { items: mcItems, lang } = useMcItems()
+  const { lang } = useMcItems()
   const advancements = useAdvancements()
   const [advSearch, setAdvSearch] = useState('')
-  const [statSearch, setStatSearch] = useState('')
-  const [itemSearch, setItemSearch] = useState('')
 
   if (!item) return null
 
@@ -107,14 +105,6 @@ export function TaskRewardEditorModal({
       (a) => a.id.toLowerCase().includes(q) || a.name.toLowerCase().includes(q),
     )
   }, [advancements, advSearch])
-
-  const filteredStats = useMemo(() => {
-    const q = statSearch.toLowerCase()
-    if (!q) return STAT_TYPES
-    return STAT_TYPES.filter(
-      (s) => s.id.toLowerCase().includes(q) || s.name.toLowerCase().includes(q),
-    )
-  }, [statSearch])
 
   const taskSpecificField = (() => {
     if (item.type === 'item') {
@@ -155,7 +145,7 @@ export function TaskRewardEditorModal({
     }
 
     if (item.type === 'advancement') {
-      const currentAdv = (item as EditorTask).advancementId ?? ''
+      const currentAdv = (item as any).advancementId ?? ''
       return (
         <div className="flex flex-col gap-2">
           <label className="text-xs text-blue-300 font-bold uppercase tracking-wider">進捗 (Advancement)</label>

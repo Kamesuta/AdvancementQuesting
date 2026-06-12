@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { ItemIcon } from '../ItemIcon.js'
 import { useIsMobile } from '@/hooks/useIsMobile.js'
-import { useMcItems, getItemName } from '@/hooks/useMcData.js'
+import { useMcItems } from '@/hooks/useMcData.js'
 
 interface ItemSelectorModalProps {
   close: () => void
@@ -11,7 +11,7 @@ interface ItemSelectorModalProps {
 export function ItemSelectorModal({ close, onSelect }: ItemSelectorModalProps) {
   const isMobile = useIsMobile()
   const [search, setSearch] = useState('')
-  const { items, isLoading, lang } = useMcItems()
+  const { items, isLoading } = useMcItems()
 
   const filtered = useMemo(() => {
     if (!items) return []
