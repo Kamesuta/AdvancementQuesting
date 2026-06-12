@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/api/auth.js'
 import { AuthContext } from '@/contexts/AuthContext.js'
+import type { ViewMode } from '@/contexts/AuthContext.js'
 import { EditorContext } from '@/contexts/EditorContext.js'
 import EditorPage from '@/pages/Editor.js'
-import type { Role } from '@/types/auth.js'
 
 // ---------------------------------------------------------------------------
 // ナビバー
@@ -18,9 +18,11 @@ interface NavProps {
   submitting: boolean
   saveQuests: () => void
   saving: boolean
+  viewMode: ViewMode
+  setViewMode: (m: ViewMode) => void
 }
 
-function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, submitting, saveQuests, saving }: NavProps) {
+function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, submitting, saveQuests, saving, viewMode, setViewMode }: NavProps) {
   const { data: me } = useQuery({
     queryKey: ['me'],
     queryFn: () => authApi.me(),
@@ -28,11 +30,13 @@ function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, su
     enabled: !!localStorage.getItem('token'),
   })
 
-  const role: Role = me?.role ?? 'player'
-  const isEditor = role === 'editor' || role === 'admin'
+  const role = me?.role ?? 'player'
+  const isEditor = role === 'editor'
+  // editor が play モードの場合は編集機能を無効化
+  const effectiveIsEditor = isEditor && viewMode === 'edit'
 
   return (
-    <AuthContext.Provider value={{ me, role, isEditor }}>
+    <AuthContext.Provider value={{ me, role, isEditor, viewMode, setViewMode }}>
       <nav
         className="shrink-0 flex items-center px-2 gap-1 border-b-4 border-black z-30 select-none"
         style={{
@@ -54,19 +58,45 @@ function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, su
           <span
             className="text-xs px-2 py-0.5 border-2 ml-1 shrink-0"
             style={{
-              color: isEditor ? '#1a3a1a' : '#1a1a3a',
-              backgroundColor: isEditor ? '#7BC67B' : '#7B9BC6',
-              borderTopColor: isEditor ? '#9BE09B' : '#9BB3E0',
-              borderLeftColor: isEditor ? '#9BE09B' : '#9BB3E0',
-              borderBottomColor: isEditor ? '#3B7B3B' : '#3B5B9B',
-              borderRightColor: isEditor ? '#3B7B3B' : '#3B5B9B',
+              color: effectiveIsEditor ? '#1a3a1a' : '#1a1a3a',
+              backgroundColor: effectiveIsEditor ? '#7BC67B' : '#7B9BC6',
+              borderTopColor: effectiveIsEditor ? '#9BE09B' : '#9BB3E0',
+              borderLeftColor: effectiveIsEditor ? '#9BE09B' : '#9BB3E0',
+              borderBottomColor: effectiveIsEditor ? '#3B7B3B' : '#3B5B9B',
+              borderRightColor: effectiveIsEditor ? '#3B7B3B' : '#3B5B9B',
             }}
           >
-            {role === 'admin' ? '管理者' : isEditor ? '編集者' : 'プレイヤー'}
+            {effectiveIsEditor ? '編集者' : 'プレイヤー'}
           </span>
         )}
 
-        {/* 提案モードバー (プレイヤーのみ) */}
+        {/* editor: モード切り替えトグル */}
+        {me && isEditor && (
+          <div className="flex items-center ml-1 border-2 shrink-0" style={{ borderTopColor: '#3B3B3B', borderLeftColor: '#3B3B3B', borderBottomColor: '#C6C6C6', borderRightColor: '#C6C6C6' }}>
+            <button
+              onClick={() => setViewMode('edit')}
+              className="text-xs px-2 py-0.5 font-bold"
+              style={{
+                color: viewMode === 'edit' ? '#0a1f0a' : '#2a2a2a',
+                backgroundColor: viewMode === 'edit' ? '#7BC67B' : '#C6C6C6',
+              }}
+            >
+              ✏️ 編集
+            </button>
+            <button
+              onClick={() => setViewMode('play')}
+              className="text-xs px-2 py-0.5 font-bold"
+              style={{
+                color: viewMode === 'play' ? '#0a0a1f' : '#2a2a2a',
+                backgroundColor: viewMode === 'play' ? '#7B9BC6' : '#C6C6C6',
+              }}
+            >
+              🎮 プレイ
+            </button>
+          </div>
+        )}
+
+        {/* player: 提案モードバー */}
         {me && !isEditor && (
           <div className="flex-1 flex items-center justify-end gap-2 px-2 min-w-0">
             {proposalMode ? (
@@ -104,8 +134,8 @@ function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, su
           </div>
         )}
 
-        {/* 編集者: 保存ボタン */}
-        {isEditor && (
+        {/* editor 編集モード: 保存ボタン */}
+        {effectiveIsEditor && (
           <div className="ml-auto pr-2">
             <button
               id="nav-save-btn"
@@ -155,13 +185,13 @@ function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, su
 
 export default function App() {
   const queryClient = useQueryClient()
+  const [viewMode, setViewMode] = useState<ViewMode>('edit')
 
   // URLに ?code=XXXXXX が含まれる場合は自動ログイン
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const code = params.get('code')
     if (code && /^\d{6}$/.test(code)) {
-      // URLからcodeを除去してからログイン
       const url = new URL(window.location.href)
       url.searchParams.delete('code')
       window.history.replaceState({}, '', url.toString())
@@ -169,9 +199,11 @@ export default function App() {
       authApi.loginWithCode({ code }).then((res) => {
         localStorage.setItem('token', res.token)
         queryClient.setQueryData(['me'], { playerUuid: res.playerUuid, playerName: res.playerName, role: res.role })
-      }).catch(() => {
-        // コードが無効でも静かに失敗（通常のログインモーダルを表示）
-      })
+        // /login でアクセスした場合はトップページに戻す
+        if (window.location.pathname === '/login') {
+          window.history.replaceState({}, '', '/')
+        }
+      }).catch(() => {})
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -211,6 +243,8 @@ export default function App() {
           submitting={submitting}
           saveQuests={saveQuests}
           saving={saving}
+          viewMode={viewMode}
+          setViewMode={setViewMode}
         />
       </div>
     </EditorContext.Provider>

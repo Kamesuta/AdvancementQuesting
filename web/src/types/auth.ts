@@ -1,4 +1,4 @@
-export type Role = 'player' | 'editor' | 'admin'
+export type Role = 'player' | 'editor'
 
 export interface PlayerSession {
   playerUuid: string

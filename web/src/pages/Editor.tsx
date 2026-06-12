@@ -114,7 +114,8 @@ const CLICK_MAX_DIST = 5
 // ---------------------------------------------------------------------------
 
 export default function EditorPage() {
-  const { isEditor, me } = useAuth()
+  const { isEditor: isEditorRole, viewMode, me } = useAuth()
+  const isEditor = isEditorRole && viewMode === 'edit'
   const queryClient = useQueryClient()
   const {
     proposalMode, setProposalMode,

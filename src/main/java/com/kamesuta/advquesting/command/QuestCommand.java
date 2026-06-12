@@ -86,8 +86,7 @@ public class QuestCommand implements CommandExecutor, TabCompleter {
     }
 
     private String determineRole(Player player) {
-        if (player.isOp() || player.hasPermission("aq.admin")) return "admin";
-        if (player.hasPermission("aq.editor")) return "editor";
+        if (player.isOp() || player.hasPermission("aq.editor")) return "editor";
         return "player";
     }
 
