@@ -1,16 +1,21 @@
 # データ設計
 
-## クエストデータの持ち方: ファイルベース JSON
+## クエストデータの持ち方
 
-### 決定と根拠
+### Mock サーバー（開発・テスト）
 
-クエストの**定義データ**（構造・タスク・報酬・マップ座標）は **JSON ファイルで管理**する。SQLには入れない。
+開発時は SQLite の `quests` テーブルで全データを管理する。
+マップ座標（`mapPosition`）もクエストテーブルの `map_position` カラムに格納する。
+
+### 本番プラグイン
+
+クエストの**定義データ**（構造・条件・報酬・マップ座標）は **JSON ファイルで管理**する。SQLには入れない。
 
 ```
 plugins/AdvancementQuesting/
 ├── quests/
-│   ├── quest_abc123.json
-│   ├── quest_def456.json
+│   ├── 00000000-0000-0000-0000-000000000001.json
+│   ├── 00000000-0000-0000-0000-000000000002.json
 │   └── ...
 └── maps/
     └── default.json        # ノード座標・エッジ一覧
@@ -29,34 +34,36 @@ plugins/AdvancementQuesting/
 
 クエスト数は多くとも数百件規模であり、検索・集計の優位性より**可搬性・差分可読性**を優先する。
 
-### クエスト JSON スキーマ
+---
+
+## クエスト JSON スキーマ（本番）
 
 ```json
 {
-  "id": "quest_abc123",
-  "title": "最初の一歩",
-  "subtitle": "木を切って世界へ踏み出そう",
-  "description": "原木を8個集めてクラフトの基礎を学ぶ。",
+  "id": "00000000-0000-0000-0000-000000000001",
+  "title": "基本",
+  "description": "クエストの説明文",
   "icon": "oak_log",
-  "tags": ["序盤", "採集"],
-  "tasks": [
+  "category": "序盤",
+  "prerequisites": [],
+  "conditions": [
     {
-      "id": "t1",
+      "id": "c1",
       "type": "item",
       "itemType": "oak_log",
-      "value": "原木を集める",
+      "label": "原木を集める",
       "count": 8
     },
     {
-      "id": "t2",
+      "id": "c2",
       "type": "advancement",
       "advancementId": "minecraft:story/mine_stone",
-      "value": "石を掘る"
+      "label": "石を掘る"
     },
     {
-      "id": "t3",
+      "id": "c3",
       "type": "checkmark",
-      "value": "クラフトを確認する"
+      "label": "クラフトを確認する"
     }
   ],
   "rewards": [
@@ -64,191 +71,176 @@ plugins/AdvancementQuesting/
       "id": "r1",
       "type": "item",
       "itemType": "wooden_pickaxe",
-      "value": "木のツルハシ",
+      "label": "木のツルハシ",
       "count": 1
     },
     {
       "id": "r2",
       "type": "experience",
-      "value": "経験値",
+      "label": "経験値",
       "amount": 50
-    },
-    {
-      "id": "r3",
-      "type": "command",
-      "value": "称号付与",
-      "command": "/lp user {player} permission set quest.novice"
     }
   ],
-  "rewardTableId": null,
-  "prerequisites": ["quest_xyz789"],
+  "mapPosition": { "x": 200, "y": 150 },
+  "customButtons": [],
   "status": "public",
   "creatorUuid": null,
-  "createdAt": "2026-06-12T00:00:00Z",
-  "updatedAt": "2026-06-12T00:00:00Z"
+  "createdAt": "2026-06-12T00:00:00.000Z",
+  "updatedAt": "2026-06-12T00:00:00.000Z"
 }
 ```
 
-### マップ JSON スキーマ
-
-クエストの座標・エッジはクエスト本体とは別の `maps/default.json` で管理する。
-エディタが保存するのもこのファイル。
-
-```json
-{
-  "id": "default",
-  "nodes": [
-    { "questId": "quest_abc123", "x": 200, "y": 150 },
-    { "questId": "quest_def456", "x": 400, "y": 150 }
-  ],
-  "edges": [
-    { "id": "e1", "source": "quest_abc123", "target": "quest_def456" }
-  ]
-}
-```
+> **注意:** `mapPosition` は本番では `maps/default.json` に分離することも検討中。
+> Mock では `quests` テーブルの `map_position` カラムに格納している。
 
 ---
 
-## プレイヤーデータの持ち方: SQLite (プラグイン側)
+## SQLite スキーマ（Mock サーバー）
 
-プレイヤーごとの**進捗・セッション・投票**は頻繁に読み書きされ、トランザクション安全性が必要なため SQLite で管理する。
+Drizzle ORM の `schema.ts` が単一の真実のソース。
 
-### テーブル設計
-
-#### player_progress
+### quests テーブル
 
 ```sql
-CREATE TABLE player_progress (
-    player_uuid  TEXT NOT NULL,
-    quest_id     TEXT NOT NULL,
-    -- 各タスクの達成状態を JSON 配列で保持
-    -- [{ "taskId": "t1", "completed": true, "count": 8 }, ...]
-    task_states  TEXT NOT NULL DEFAULT '[]',
-    completed    INTEGER NOT NULL DEFAULT 0,  -- BOOLEAN
-    reward_claimed INTEGER NOT NULL DEFAULT 0,
-    started_at   INTEGER NOT NULL,            -- Unix timestamp
-    completed_at INTEGER,
-    PRIMARY KEY (player_uuid, quest_id)
+CREATE TABLE quests (
+    id           TEXT PRIMARY KEY,
+    title        TEXT NOT NULL,
+    description  TEXT,
+    icon         TEXT,
+    category     TEXT,
+    prerequisites TEXT NOT NULL DEFAULT '[]',  -- JSON 配列
+    conditions   TEXT NOT NULL DEFAULT '[]',   -- JSON 配列
+    rewards      TEXT NOT NULL DEFAULT '[]',   -- JSON 配列
+    map_position TEXT,                         -- JSON {x,y} または NULL
+    custom_buttons TEXT NOT NULL DEFAULT '[]', -- JSON 配列
+    status       TEXT NOT NULL DEFAULT 'draft',  -- draft|proposed|public|hidden
+    creator_uuid TEXT,
+    created_at   INTEGER NOT NULL,
+    updated_at   INTEGER NOT NULL
 );
 ```
 
-`task_states` の各要素:
+### player_progress テーブル
 
-```json
-{ "taskId": "t1", "completed": true, "count": 8 }
+```sql
+CREATE TABLE player_progress (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    player_uuid  TEXT NOT NULL,
+    quest_id     TEXT NOT NULL REFERENCES quests(id),
+    progress     TEXT NOT NULL DEFAULT '[]',  -- JSON 配列（各条件の達成状況）
+    completed    INTEGER NOT NULL DEFAULT 0,  -- BOOLEAN
+    reward_claimed INTEGER NOT NULL DEFAULT 0,
+    started_at   INTEGER NOT NULL,
+    completed_at INTEGER,
+    UNIQUE (player_uuid, quest_id)
+);
 ```
 
-- `taskId` はクエスト JSON の `tasks[].id` を参照（外部キーなし、ファイルベースのため）
-- クエスト JSON が変更されても旧 `taskId` の行は残り、マッピングできないものは無視する
-
-#### player_sessions
+### player_sessions テーブル
 
 ```sql
 CREATE TABLE player_sessions (
     session_token TEXT PRIMARY KEY,
     player_uuid   TEXT NOT NULL,
     player_name   TEXT NOT NULL,
-    role          TEXT NOT NULL DEFAULT 'player',  -- 'player' | 'editor' | 'admin'
+    role          TEXT NOT NULL DEFAULT 'player',  -- player|editor|admin
     ip_address    TEXT,
     created_at    INTEGER NOT NULL,
     expires_at    INTEGER NOT NULL
 );
 ```
 
-`role` はセッション発行時にプラグイン側の権限情報から決定する。
-Webサーバーはトークンを検証するだけで権限判定できる。
+セッション削除はハード削除（`DELETE`）。再ログイン時は同じトークンを upsert する。
 
-#### auth_codes
+### auth_codes テーブル
 
 ```sql
 CREATE TABLE auth_codes (
     code        TEXT PRIMARY KEY,    -- 6桁数字
     player_uuid TEXT NOT NULL,
     player_name TEXT NOT NULL,
-    role        TEXT NOT NULL DEFAULT 'player',
     created_at  INTEGER NOT NULL,
     expires_at  INTEGER NOT NULL,
     used        INTEGER NOT NULL DEFAULT 0
 );
 ```
 
-#### proposals (提案)
+### quest_proposals テーブル
 
 ```sql
-CREATE TABLE proposals (
+CREATE TABLE quest_proposals (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    -- 提案内容は JSON スナップショットとして保持
-    -- 承認時にそのまま quest JSON として書き出す
-    quest_snapshot TEXT NOT NULL,
+    quest_id      TEXT NOT NULL REFERENCES quests(id),
     proposer_uuid TEXT NOT NULL,
     proposer_name TEXT NOT NULL,
-    status        TEXT NOT NULL DEFAULT 'pending',  -- 'pending'|'approved'|'rejected'
+    status        TEXT NOT NULL DEFAULT 'pending',  -- pending|approved|rejected
+    votes_up      INTEGER NOT NULL DEFAULT 0,
+    votes_down    INTEGER NOT NULL DEFAULT 0,
     reject_reason TEXT,
-    created_at    INTEGER NOT NULL,
-    updated_at    INTEGER NOT NULL
+    created_at    INTEGER NOT NULL
 );
 ```
 
-#### proposal_votes
+提案内容は `quests` テーブルに `status='proposed'` で直接格納し、`quest_proposals` は `quest_id` で参照する。
+`votes_up` / `votes_down` は `proposal_votes` からの集計結果をキャッシュとして保持する。
+
+### proposal_votes テーブル
 
 ```sql
 CREATE TABLE proposal_votes (
-    proposal_id  INTEGER NOT NULL REFERENCES proposals(id),
-    player_uuid  TEXT NOT NULL,
-    vote_type    TEXT NOT NULL,  -- 'up' | 'down'
-    voted_at     INTEGER NOT NULL,
-    PRIMARY KEY (proposal_id, player_uuid)
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    proposal_id INTEGER NOT NULL REFERENCES quest_proposals(id),
+    player_uuid TEXT NOT NULL,
+    vote_type   TEXT NOT NULL,  -- up|down
+    voted_at    INTEGER NOT NULL,
+    UNIQUE (proposal_id, player_uuid)
 );
 ```
 
-`votes_up` / `votes_down` カウンタは `proposal_votes` の集計クエリで取得し、`proposals` テーブルには持たない（二重管理を避ける）。
+---
+
+## SQLite スキーマ（本番プラグイン）
+
+本番プラグインでは `quests` テーブルは使わない（JSON ファイル管理）。
+プレイヤーデータのみ SQLite で管理する:
+
+- `player_progress`（Mock と同じスキーマ）
+- `player_sessions`（Mock と同じスキーマ）
+- `auth_codes`（Mock と同じスキーマ）
+- `quest_proposals`（スキーマは同じだが、承認時に JSON ファイルへ書き出す）
+- `proposal_votes`（Mock と同じスキーマ）
 
 ---
 
-## エディタ型とAPI型の対応
+## エディタ型と API 型の対応
 
-Webエディタ（`editor/types.ts`）は描画用の内部型を持つ。保存時にAPI型へ変換する。
+Web エディタの内部型 → API/ファイル型への変換:
 
 ```
-EditorNode  ─── save ───► Quest JSON (ファイル) + MapPosition (maps/default.json)
-EditorEdge  ─── save ───► maps/default.json の edges[]
-EditorTask  ─── save ───► Quest.tasks[]
-EditorReward ── save ───► Quest.rewards[]
+EditorNode.{x,y}       ─── save ───► Quest.mapPosition.{x,y}
+EditorNode.title       ─── save ───► Quest.title
+EditorNode.icon        ─── save ───► Quest.icon
+EditorEdge             ─── save ───► Quest.prerequisites[] の相互参照
+EditorCondition        ─── save ───► Quest.conditions[]
+EditorReward           ─── save ───► Quest.rewards[]
 ```
 
-### 変換ルール
-
-| エディタ型 | API/ファイル型 | 備考 |
-|-----------|--------------|------|
-| `EditorNode.icon` | `Quest.icon` | そのまま |
-| `EditorNode.{x,y}` | `MapNode.{x,y}` | マップファイルへ分離 |
-| `EditorTask.type` | `Quest.tasks[].type` | `'checkmark'`/`'item'`/`'advancement'`/`'command'` |
-| `EditorTask.itemType` | `Quest.tasks[].itemType` | `type==='item'` の時のみ |
-| `EditorTask.value` | `Quest.tasks[].value` | 表示名 or コマンド文字列 |
-| `EditorEdge` | `MapEdge` | マップファイルへ |
+保存時は `PUT /api/quests/:id` を全クエスト分一括で呼び出す。
+削除されたノードは `DELETE /api/quests/:id`、追加されたノードは `POST /api/quests`。
 
 ---
 
-## 報酬テーブル
+## シードデータ（テスト用固定 ID）
 
-複数クエストで共有できる報酬セットを別ファイルで管理する。
+E2E テスト安定のため `seed.ts` では固定の連番 ID を upsert する:
 
-```
-plugins/AdvancementQuesting/
-└── reward_tables/
-    ├── table_lv.json
-    └── table_mv.json
-```
+| ID | ファイル名（本番） | タイトル | 状態 |
+|----|----------------|--------|------|
+| `1` | `00001_基本.json` | 基本 | public |
+| `2` | `00002_石器時代.json` | 石器時代 | public |
+| `3` | `00003_ダイヤの輝き.json` | ダイヤの輝き | public |
+| `4` | `00004_ネザーの扉.json` | ネザーの扉 | draft |
 
-```json
-{
-  "id": "table_lv",
-  "name": "LV 報酬",
-  "rewards": [
-    { "id": "r1", "type": "item", "itemType": "iron_ingot", "count": 16 }
-  ]
-}
-```
-
-クエスト JSON から `"rewardTableId": "table_lv"` で参照する。
-報酬テーブルが設定されている場合、個別 `rewards[]` より優先して適用する。
+- Mock の `quests.id` は `INTEGER AUTOINCREMENT` だが、seed 時は `onConflictDoUpdate` で 1〜4 を強制挿入する
+- `data-node-id` 属性には `String(quest.id)` ("1", "2", ...) が使われる
+- Playwright のセレクタ例: `[data-node-id="1"]`

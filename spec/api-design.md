@@ -70,11 +70,46 @@
 ---
 
 ### DELETE /api/auth/logout
-セッションを無効化する。
+セッションを削除する（ハード削除）。
 
 **権限:** 全ロール
 
 **レスポンス 204:** (body なし)
+
+> **実装注意:** ソフトデリート（`expiresAt=0`）ではなく物理削除すること。
+> 同じトークンで再ログインする場合は `/api/auth/quick` の upsert を使う。
+
+---
+
+### POST /api/auth/quick ⚠️ Mock 専用・本番非対応
+固定の開発用トークンでセッションを即座に upsert する。
+
+**権限:** 不要
+
+**リクエスト:**
+```json
+{ "token": "demo-editor-token" }
+```
+
+**対応トークン:**
+| トークン | プレイヤー | ロール |
+|--------|---------|------|
+| `demo-session-token-for-development` | Steve | editor |
+| `demo-editor-token` | Editor | editor |
+| `demo-player-token` | Alex | player |
+
+**レスポンス 200:**
+```json
+{
+  "token": "demo-editor-token",
+  "playerUuid": "bbbbbbbb-...",
+  "playerName": "Editor",
+  "role": "editor"
+}
+```
+
+**エラー:**
+- `400` 未知のトークン
 
 ---
 
@@ -83,69 +118,51 @@
 ### GET /api/quests
 クエスト一覧を返す。マップ座標も含む。
 
-**権限:** 全ロール（`status=draft` は `editor`/`admin` のみ表示）
+**権限:** 認証不要（未ログインでも閲覧可）
 
 **クエリパラメータ:**
 
 | パラメータ | 型 | デフォルト | 説明 |
 |-----------|---|----------|------|
-| `status` | `public\|draft\|hidden` | `public` | フィルタ (editor+ は全件取得可) |
-| `tag` | string | - | タグで絞り込み |
+| `status` | `public\|draft\|hidden\|proposed` | - | フィルタ（未指定で全件） |
+| `category` | string | - | カテゴリで絞り込み |
 
 **レスポンス 200:**
 ```json
 [
   {
-    "id": "quest_abc123",
-    "title": "最初の一歩",
-    "subtitle": "木を切って世界へ踏み出そう",
+    "id": "00000000-0000-0000-0000-000000000001",
+    "title": "基本",
+    "description": "クエストの説明",
     "icon": "oak_log",
-    "tags": ["序盤"],
-    "status": "public",
+    "category": null,
     "prerequisites": [],
+    "conditions": [...],
+    "rewards": [...],
     "mapPosition": { "x": 200, "y": 150 },
-    "taskCount": 3,
-    "rewardCount": 2
+    "customButtons": [],
+    "status": "public",
+    "creatorUuid": null,
+    "createdAt": "2026-06-12T00:00:00.000Z",
+    "updatedAt": "2026-06-12T00:00:00.000Z"
   }
 ]
 ```
 
-一覧では `tasks` / `rewards` の全内容は返さない（帯域節約）。
+> **Mock の挙動:** 認証不要で全 status のクエストを返す。
+> 本番ではロールに応じてフィルタを行う（`player` は `public` のみ、`editor` 以上は全件）。
 
 ---
 
 ### GET /api/quests/:id
 クエスト詳細を返す。
 
-**権限:** 全ロール（draft は editor+）
+**権限:** 認証不要
 
-**レスポンス 200:**
-```json
-{
-  "id": "quest_abc123",
-  "title": "最初の一歩",
-  "subtitle": "木を切って世界へ踏み出そう",
-  "description": "原木を8個集めてクラフトの基礎を学ぶ。",
-  "icon": "oak_log",
-  "tags": ["序盤", "採集"],
-  "tasks": [
-    { "id": "t1", "type": "item", "itemType": "oak_log", "value": "原木を集める", "count": 8 },
-    { "id": "t2", "type": "advancement", "advancementId": "minecraft:story/mine_stone", "value": "石を掘る" },
-    { "id": "t3", "type": "checkmark", "value": "クラフトを確認する" }
-  ],
-  "rewards": [
-    { "id": "r1", "type": "item", "itemType": "wooden_pickaxe", "value": "木のツルハシ", "count": 1 },
-    { "id": "r2", "type": "experience", "value": "経験値", "amount": 50 }
-  ],
-  "rewardTableId": null,
-  "prerequisites": [],
-  "mapPosition": { "x": 200, "y": 150 },
-  "status": "public",
-  "creatorUuid": null,
-  "createdAt": "2026-06-12T00:00:00Z",
-  "updatedAt": "2026-06-12T00:00:00Z"
-}
-```
+**レスポンス 200:** `GET /api/quests` の1要素と同形式
+
+**エラー:**
+- `404` 存在しない
 
 ---
 
@@ -161,7 +178,7 @@
 ---
 
 ### PUT /api/quests/:id
-クエストを更新する。部分更新可（PATCH 相当の挙動）。
+クエストを更新する（部分更新可）。
 
 **権限:** `editor`, `admin`
 
@@ -172,44 +189,11 @@
 ---
 
 ### DELETE /api/quests/:id
-クエストを削除する（ファイルを削除し、マップからも除去）。
+クエストを削除する。
 
-**権限:** `admin`
+**権限:** `admin`（Mock は `editor` でも可）
 
 **レスポンス 204:** (body なし)
-
----
-
-## マップ API
-
-### GET /api/map
-デフォルトマップのノード座標・エッジ一覧を返す。
-
-**権限:** 全ロール
-
-**レスポンス 200:**
-```json
-{
-  "nodes": [
-    { "questId": "quest_abc123", "x": 200, "y": 150 },
-    { "questId": "quest_def456", "x": 400, "y": 150 }
-  ],
-  "edges": [
-    { "id": "e1", "source": "quest_abc123", "target": "quest_def456" }
-  ]
-}
-```
-
----
-
-### PUT /api/map
-エディタの保存操作。マップ全体を上書きする。
-
-**権限:** `editor`, `admin`
-
-**リクエスト:** `GET /api/map` と同じ形式
-
-**レスポンス 200:** 保存後のマップ
 
 ---
 
@@ -224,15 +208,13 @@
 ```json
 [
   {
-    "questId": "quest_abc123",
-    "taskStates": [
-      { "taskId": "t1", "completed": true, "count": 8 },
-      { "taskId": "t2", "completed": false, "count": 0 },
-      { "taskId": "t3", "completed": false, "count": 0 }
-    ],
+    "id": 1,
+    "playerUuid": "550e8400-...",
+    "questId": "00000000-0000-0000-0000-000000000001",
+    "progress": [...],
     "completed": false,
     "rewardClaimed": false,
-    "startedAt": "2026-06-12T10:00:00Z",
+    "startedAt": "2026-06-12T10:00:00.000Z",
     "completedAt": null
   }
 ]
@@ -245,71 +227,52 @@
 
 **権限:** 全ロール（自分の分のみ）
 
-**レスポンス 200:** `GET /api/progress` の1要素と同形式
-
 **エラー:**
 - `404` 進捗レコードなし（未開始）
 
 ---
 
 ### POST /api/progress/:questId/claim
-報酬を受け取る。
+報酬を受け取る。（将来実装）
 
 **権限:** 全ロール
-
-**前提条件:** クエスト完了済み (`completed=true`) かつ未受取 (`rewardClaimed=false`)
-
-**レスポンス 200:**
-```json
-{ "claimed": true }
-```
-
-**エラー:**
-- `400` クエスト未完了、または受取済み
-- `404` 進捗レコードなし
 
 ---
 
 ## 提案 API
 
-提案は「編集権限を持たないプレイヤーがクエストの追加・変更を申請する」機能。
-承認されると実際のクエスト JSON として書き出される。
-
 ### GET /api/proposals
-提案一覧を返す。
+提案一覧を返す。クエスト情報と投票状態を付加する。
 
 **権限:** 全ロール
-
-**クエリパラメータ:**
-
-| パラメータ | 型 | デフォルト | 説明 |
-|-----------|---|----------|------|
-| `status` | `pending\|approved\|rejected` | `pending` | フィルタ |
-| `sort` | `newest\|votes` | `newest` | ソート順 |
 
 **レスポンス 200:**
 ```json
 [
   {
     "id": 1,
+    "questId": "uuid-of-proposed-quest",
+    "proposerUuid": "cccccccc-...",
     "proposerName": "Alex",
     "status": "pending",
+    "votesUp": 2,
+    "votesDown": 0,
+    "rejectReason": null,
+    "createdAt": "2026-06-12T10:00:00.000Z",
+    "myVote": "up",
+    "mapPosition": { "x": 300, "y": 200 },
     "questSnapshot": {
       "title": "ネザーへの挑戦",
+      "description": "灼熱の世界で生き残れ",
       "icon": "netherrack",
-      "tasks": [...],
-      "rewards": [...]
-    },
-    "votesUp": 5,
-    "votesDown": 1,
-    "myVote": "up",
-    "rejectReason": null,
-    "createdAt": "2026-06-12T10:00:00Z"
+      "prerequisites": []
+    }
   }
 ]
 ```
 
 `myVote` は未投票なら `null`。
+`mapPosition` と `questSnapshot` は `quests` テーブルから JOIN して付加する。
 
 ---
 
@@ -321,23 +284,19 @@
 **リクエスト:**
 ```json
 {
-  "questSnapshot": {
-    "title": "ネザーへの挑戦",
-    "subtitle": "灼熱の世界で生き残れ",
-    "description": "ネザーに行って帰ってくる。",
-    "icon": "netherrack",
-    "tags": ["中盤", "冒険"],
-    "tasks": [...],
-    "rewards": [...],
-    "prerequisites": ["quest_abc123"]
-  }
+  "title": "ネザーへの挑戦",
+  "description": "灼熱の世界で生き残れ",
+  "icon": "netherrack",
+  "prerequisites": ["00000000-0000-0000-0000-000000000001"],
+  "mapPosition": { "x": 300, "y": 200 }
 }
 ```
 
-`questSnapshot` はクエスト JSON から `id` / `status` / `creatorUuid` / タイムスタンプを除いたもの。
-マップ上の座標は含まない（承認後にエディタで配置する）。
+処理:
+1. `quests` テーブルに `status='proposed'` でクエストを作成
+2. `quest_proposals` に提案レコードを作成（`questId` で参照）
 
-**レスポンス 201:** 作成された提案全体
+**レスポンス 201:** 作成された提案全体（`myVote: null`）
 
 ---
 
@@ -353,36 +312,26 @@
 
 **レスポンス 200:**
 ```json
-{ "votesUp": 6, "votesDown": 1, "myVote": "up" }
+{ "myVote": "up" }
 ```
 
 **エラー:**
 - `404` 提案が存在しない
-- `400` 承認・却下済みの提案には投票不可
 
 ---
 
 ### POST /api/proposals/:id/approve
-提案を承認してクエスト JSON として書き出す。
+提案を承認してクエストを `public` に変更する。
 
 **権限:** `editor`, `admin`
 
-**リクエスト:** (body なし、または上書きしたい差分フィールドを指定可)
-```json
-{
-  "mapPosition": { "x": 600, "y": 200 }
-}
-```
-
 処理:
-1. `questSnapshot` をベースにクエスト JSON を生成
-2. `id` を新規採番、`status=public`、`creatorUuid` を提案者の UUID に設定
-3. `mapPosition` が指定されていればマップファイルにも追記
-4. `proposals.status` を `approved` に更新
+1. `quest_proposals.status` を `approved` に更新
+2. 対応する `quests.status` を `public` に変更
 
 **レスポンス 200:**
 ```json
-{ "questId": "quest_xyz999" }
+{ "status": "approved" }
 ```
 
 ---
@@ -397,6 +346,10 @@
 { "reason": "前提条件の設定が不適切です。" }
 ```
 
+処理:
+1. `quest_proposals.status` を `rejected`、`rejectReason` を設定
+2. 対応する `quests.status` を `hidden` に変更
+
 **レスポンス 200:**
 ```json
 { "status": "rejected" }
@@ -404,47 +357,16 @@
 
 ---
 
-## 報酬テーブル API
+## テスト用 API ⚠️ Mock 専用・本番非対応
 
-### GET /api/reward-tables
-報酬テーブル一覧を返す。
+### POST /api/test/restore-sessions
+デモセッションを復元する（有効期限を7日延長する upsert）。
 
-**権限:** 全ロール
+### POST /api/test/restore-auth-code
+コード `123456` を未使用状態でリセットする（有効期限を5分延長）。
 
-**レスポンス 200:**
-```json
-[
-  { "id": "table_lv", "name": "LV 報酬", "rewardCount": 3 }
-]
-```
-
----
-
-### GET /api/reward-tables/:id
-報酬テーブルの詳細（報酬内容）を返す。
-
-**権限:** 全ロール
-
----
-
-### POST /api/reward-tables
-報酬テーブルを新規作成する。
-
-**権限:** `editor`, `admin`
-
----
-
-### PUT /api/reward-tables/:id
-報酬テーブルを更新する。
-
-**権限:** `editor`, `admin`
-
----
-
-### DELETE /api/reward-tables/:id
-報酬テーブルを削除する。参照中のクエストがある場合は `409 Conflict`。
-
-**権限:** `admin`
+### POST /api/test/reset-proposals
+全提案・提案投票・`status='proposed'` のクエストを削除する。
 
 ---
 
@@ -464,12 +386,12 @@
 ## Mock サーバーとの対応
 
 Mock サーバー (`web/mock-server/`) は上記 API 契約を SQLite + Drizzle で実装する。
-ファイルベース部分（クエスト JSON・マップ JSON）は Mock では SQLite テーブルで代替し、
-API レスポンス形式は本番プラグインと完全に一致させる。
+本番プラグインとのスキーマ差異は以下の通り:
 
-| 本番 (プラグイン) | Mock サーバー |
-|-----------------|-------------|
-| `quests/*.json` | `quests` テーブル |
-| `maps/default.json` | `map_nodes` + `map_edges` テーブル |
-| `reward_tables/*.json` | `reward_tables` テーブル |
-| SQLite (進捗・セッション) | SQLite (同じスキーマ) |
+| 概念 | 本番 (プラグイン) | Mock サーバー |
+|------|----------------|-------------|
+| クエスト定義 | `quests/*.json` | `quests` テーブル（`mapPosition` を含む） |
+| マップ座標 | `maps/default.json` | クエストの `map_position` カラムに統合 |
+| 進捗・セッション | SQLite | SQLite（同じスキーマ） |
+| 提案・投票 | SQLite | SQLite（同じスキーマ） |
+| 報酬テーブル | `reward_tables/*.json` | 未実装 |
