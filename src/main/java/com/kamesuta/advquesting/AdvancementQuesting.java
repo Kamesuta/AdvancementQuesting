@@ -1,12 +1,19 @@
 package com.kamesuta.advquesting;
 
 import com.kamesuta.advquesting.api.AuthRoutes;
+import com.kamesuta.advquesting.api.ProposalRoutes;
+import com.kamesuta.advquesting.api.ProgressRoutes;
 import com.kamesuta.advquesting.api.QuestRoutes;
 import com.kamesuta.advquesting.command.QuestCommand;
+import com.kamesuta.advquesting.data.ProgressManager;
 import com.kamesuta.advquesting.data.QuestManager;
 import com.kamesuta.advquesting.db.AuthCodeDao;
 import com.kamesuta.advquesting.db.DatabaseManager;
+import com.kamesuta.advquesting.db.ProgressDao;
+import com.kamesuta.advquesting.db.ProposalDao;
 import com.kamesuta.advquesting.db.SessionDao;
+import com.kamesuta.advquesting.listener.AdvancementListener;
+import com.kamesuta.advquesting.listener.ItemProgressListener;
 import io.javalin.Javalin;
 import io.javalin.http.staticfiles.Location;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -34,7 +41,10 @@ public final class AdvancementQuesting extends JavaPlugin {
 
         SessionDao sessionDao = new SessionDao(db);
         AuthCodeDao authCodeDao = new AuthCodeDao(db, sessionDao);
+        ProgressDao progressDao = new ProgressDao(db);
+        ProposalDao proposalDao = new ProposalDao(db);
         QuestManager questManager = new QuestManager(getDataFolder());
+        ProgressManager progressManager = new ProgressManager(this, questManager, progressDao);
 
         int port = getConfig().getInt("web-port", 8080);
         String webUrl = getConfig().getString("web-url", "http://localhost:" + port);
@@ -54,6 +64,8 @@ public final class AdvancementQuesting extends JavaPlugin {
         // API ルート登録
         new AuthRoutes(sessionDao, authCodeDao).register(app);
         new QuestRoutes(questManager, sessionDao).register(app);
+        new ProgressRoutes(progressDao, progressManager, sessionDao).register(app);
+        new ProposalRoutes(proposalDao, questManager, sessionDao).register(app);
 
         // SPA フォールバック: /api 以外の未知パスは index.html を返す
         app.error(404, ctx -> {
@@ -68,8 +80,12 @@ public final class AdvancementQuesting extends JavaPlugin {
         app.start(port);
         getLogger().info("Web UI を起動しました: " + webUrl);
 
+        // イベントリスナー登録
+        getServer().getPluginManager().registerEvents(new AdvancementListener(progressManager), this);
+        getServer().getPluginManager().registerEvents(new ItemProgressListener(progressManager), this);
+
         // コマンド登録
-        QuestCommand questCommand = new QuestCommand(authCodeDao, webUrl);
+        QuestCommand questCommand = new QuestCommand(authCodeDao, webUrl, progressDao, progressManager, questManager);
         Objects.requireNonNull(getCommand("quest")).setExecutor(questCommand);
         Objects.requireNonNull(getCommand("quest")).setTabCompleter(questCommand);
     }

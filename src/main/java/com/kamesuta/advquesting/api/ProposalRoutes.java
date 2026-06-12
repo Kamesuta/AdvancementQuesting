@@ -1,0 +1,172 @@
+package com.kamesuta.advquesting.api;
+
+import com.kamesuta.advquesting.data.Quest;
+import com.kamesuta.advquesting.data.QuestManager;
+import com.kamesuta.advquesting.db.ProposalDao;
+import com.kamesuta.advquesting.db.SessionDao;
+import io.javalin.Javalin;
+import io.javalin.http.BadRequestResponse;
+import io.javalin.http.ForbiddenResponse;
+import io.javalin.http.NotFoundResponse;
+
+import java.io.IOException;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class ProposalRoutes {
+
+    private final ProposalDao proposalDao;
+    private final QuestManager questManager;
+    private final SessionDao sessionDao;
+
+    public ProposalRoutes(ProposalDao proposalDao, QuestManager questManager, SessionDao sessionDao) {
+        this.proposalDao = proposalDao;
+        this.questManager = questManager;
+        this.sessionDao = sessionDao;
+    }
+
+    public void register(Javalin app) {
+
+        // GET /api/proposals — 提案一覧 (questSnapshot + myVote 付き)
+        app.get("/api/proposals", ctx -> {
+            SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
+            try {
+                List<ProposalDao.ProposalRecord> proposals = proposalDao.findAll();
+                List<Map<String, Object>> result = new ArrayList<>();
+                for (ProposalDao.ProposalRecord p : proposals) {
+                    Quest quest = questManager.findById(p.questId());
+                    String myVote = proposalDao.getMyVote(p.id(), session.playerUuid());
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", p.id());
+                    map.put("questId", p.questId());
+                    map.put("proposerUuid", p.proposerUuid());
+                    map.put("proposerName", p.proposerName());
+                    map.put("status", p.status());
+                    map.put("votesUp", p.votesUp());
+                    map.put("votesDown", p.votesDown());
+                    map.put("rejectReason", p.rejectReason());
+                    map.put("createdAt", p.createdAt());
+                    map.put("myVote", myVote);
+                    if (quest != null) {
+                        map.put("mapPosition", quest.mapPosition);
+                        map.put("questSnapshot", Map.of(
+                            "title", quest.title != null ? quest.title : "",
+                            "description", quest.description != null ? quest.description : "",
+                            "icon", quest.icon != null ? quest.icon : "",
+                            "prerequisites", quest.prerequisites != null ? quest.prerequisites : List.of()
+                        ));
+                    }
+                    result.add(map);
+                }
+                ctx.json(result);
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        // POST /api/proposals — 提案投稿 (全ロール)
+        app.post("/api/proposals", ctx -> {
+            SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
+            try {
+                Quest body = ctx.bodyAsClass(Quest.class);
+                body.status = "proposed";
+                body.creatorUuid = session.playerUuid();
+                Quest created = questManager.create(body);
+                ProposalDao.ProposalRecord proposal = proposalDao.create(
+                    created.id, session.playerUuid(), session.playerName()
+                );
+                Map<String, Object> resp = new HashMap<>();
+                resp.put("id", proposal.id());
+                resp.put("questId", created.id);
+                resp.put("proposerUuid", proposal.proposerUuid());
+                resp.put("proposerName", proposal.proposerName());
+                resp.put("status", "pending");
+                resp.put("votesUp", 0);
+                resp.put("votesDown", 0);
+                resp.put("rejectReason", null);
+                resp.put("createdAt", proposal.createdAt());
+                resp.put("myVote", null);
+                resp.put("mapPosition", created.mapPosition);
+                resp.put("questSnapshot", Map.of(
+                    "title", created.title != null ? created.title : "",
+                    "description", created.description != null ? created.description : "",
+                    "icon", created.icon != null ? created.icon : "",
+                    "prerequisites", created.prerequisites != null ? created.prerequisites : List.of()
+                ));
+                ctx.status(201).json(resp);
+            } catch (IOException | SQLException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        // POST /api/proposals/:id/vote — 投票
+        app.post("/api/proposals/{id}/vote", ctx -> {
+            SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
+            int id = parseId(ctx.pathParam("id"));
+            try {
+                Map<?, ?> body = ctx.bodyAsClass(Map.class);
+                String type = (String) body.get("type");
+                if (!"up".equals(type) && !"down".equals(type)) throw new BadRequestResponse("type must be up or down");
+                if (proposalDao.findById(id) == null) throw new NotFoundResponse();
+                String myVote = proposalDao.vote(id, session.playerUuid(), type);
+                ctx.json(Map.of("myVote", myVote != null ? myVote : ""));
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        // POST /api/proposals/:id/approve — 承認 (editor以上)
+        app.post("/api/proposals/{id}/approve", ctx -> {
+            SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
+            if (!session.isEditor()) throw new ForbiddenResponse();
+            int id = parseId(ctx.pathParam("id"));
+            try {
+                ProposalDao.ProposalRecord proposal = proposalDao.findById(id);
+                if (proposal == null) throw new NotFoundResponse();
+                boolean ok = proposalDao.approve(id);
+                if (!ok) throw new BadRequestResponse("Already processed");
+                // クエストを public に変更
+                Quest patch = new Quest();
+                patch.status = "public";
+                questManager.update(proposal.questId(), patch);
+                ctx.json(Map.of("status", "approved"));
+            } catch (IOException | SQLException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        // POST /api/proposals/:id/reject — 却下 (editor以上)
+        app.post("/api/proposals/{id}/reject", ctx -> {
+            SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
+            if (!session.isEditor()) throw new ForbiddenResponse();
+            int id = parseId(ctx.pathParam("id"));
+            try {
+                ProposalDao.ProposalRecord proposal = proposalDao.findById(id);
+                if (proposal == null) throw new NotFoundResponse();
+                Map<?, ?> body = ctx.bodyAsClass(Map.class);
+                Object reasonObj = body.get("reason");
+                String reason = reasonObj instanceof String s ? s : "";
+                boolean ok = proposalDao.reject(id, reason);
+                if (!ok) throw new BadRequestResponse("Already processed");
+                // クエストを hidden に変更
+                Quest patch = new Quest();
+                patch.status = "hidden";
+                questManager.update(proposal.questId(), patch);
+                ctx.json(Map.of("status", "rejected"));
+            } catch (IOException | SQLException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private static int parseId(String s) {
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            throw new BadRequestResponse("Invalid id");
+        }
+    }
+}
