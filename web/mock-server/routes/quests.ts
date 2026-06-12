@@ -2,7 +2,6 @@ import { Router } from 'express'
 import { db } from '../db/client.js'
 import { quests } from '../db/schema.js'
 import { eq } from 'drizzle-orm'
-import { randomUUID } from 'crypto'
 import type { AuthRequest } from '../middleware/auth.js'
 import { requireAuth } from '../middleware/auth.js'
 
@@ -24,8 +23,8 @@ router.get('/', async (req, res) => {
 
 // GET /api/quests/:id
 router.get('/:id', async (req, res) => {
-  // Express 5 の型定義では params が string | string[] になるため明示的にキャスト
-  const id = String(req.params['id'])
+  const id = parseInt(String(req.params['id']), 10)
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return }
   const quest = await db.select().from(quests).where(eq(quests.id, id)).get()
   if (!quest) {
     res.status(404).json({ error: 'Quest not found' })
@@ -34,12 +33,11 @@ router.get('/:id', async (req, res) => {
   res.json(quest)
 })
 
-// POST /api/quests
+// POST /api/quests — id は AUTOINCREMENT で採番
 router.post('/', requireAuth, async (req: AuthRequest, res) => {
   const body = req.body
   const now = new Date()
-  const quest = {
-    id: randomUUID(),
+  const values = {
     title: body.title ?? 'New Quest',
     description: body.description ?? null,
     icon: body.icon ?? null,
@@ -55,13 +53,14 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
     updatedAt: now,
   }
 
-  await db.insert(quests).values(quest)
-  res.status(201).json(quest)
+  const result = await db.insert(quests).values(values).returning()
+  res.status(201).json(result[0])
 })
 
 // PUT /api/quests/:id
 router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
-  const id = String(req.params['id'])
+  const id = parseInt(String(req.params['id']), 10)
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return }
   const existing = await db.select().from(quests).where(eq(quests.id, id)).get()
   if (!existing) {
     res.status(404).json({ error: 'Quest not found' })
@@ -77,7 +76,8 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
 
 // DELETE /api/quests/:id
 router.delete('/:id', requireAuth, async (req, res) => {
-  const id = String(req.params['id'])
+  const id = parseInt(String(req.params['id']), 10)
+  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return }
   await db.delete(quests).where(eq(quests.id, id))
   res.status(204).send()
 })

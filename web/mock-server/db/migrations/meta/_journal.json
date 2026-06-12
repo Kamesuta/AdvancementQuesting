@@ -15,6 +15,13 @@
       "when": 1781257333421,
       "tag": "0001_salty_speed",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1781302620000,
+      "tag": "0002_quest_integer_id",
+      "breakpoints": true
     }
   ]
 }

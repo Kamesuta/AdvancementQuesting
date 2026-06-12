@@ -1,12 +1,12 @@
 import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 export const quests = sqliteTable('quests', {
-  id: text('id').primaryKey(),
+  id: integer('id').primaryKey({ autoIncrement: true }),
   title: text('title').notNull(),
   description: text('description'),
   icon: text('icon'),
   category: text('category'),
-  prerequisites: text('prerequisites', { mode: 'json' }).$type<string[]>().notNull().default([]),
+  prerequisites: text('prerequisites', { mode: 'json' }).$type<number[]>().notNull().default([]),
   conditions: text('conditions', { mode: 'json' }).$type<object[]>().notNull().default([]),
   rewards: text('rewards', { mode: 'json' }).$type<object[]>().notNull().default([]),
   mapPosition: text('map_position', { mode: 'json' }).$type<{ x: number; y: number } | null>(),
@@ -20,7 +20,7 @@ export const quests = sqliteTable('quests', {
 export const playerProgress = sqliteTable('player_progress', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   playerUuid: text('player_uuid').notNull(),
-  questId: text('quest_id').notNull().references(() => quests.id),
+  questId: integer('quest_id').notNull().references(() => quests.id),
   progress: text('progress', { mode: 'json' }).$type<object[]>().notNull().default([]),
   completed: integer('completed', { mode: 'boolean' }).notNull().default(false),
   rewardClaimed: integer('reward_claimed', { mode: 'boolean' }).notNull().default(false),
@@ -32,7 +32,7 @@ export const playerProgress = sqliteTable('player_progress', {
 
 export const questProposals = sqliteTable('quest_proposals', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  questId: text('quest_id').notNull().references(() => quests.id),
+  questId: integer('quest_id').notNull().references(() => quests.id),
   proposerUuid: text('proposer_uuid').notNull(),
   proposerName: text('proposer_name').notNull(),
   status: text('status', { enum: ['pending', 'approved', 'rejected'] }).notNull().default('pending'),

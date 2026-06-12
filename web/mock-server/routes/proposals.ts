@@ -2,7 +2,6 @@ import { Router } from 'express'
 import { db } from '../db/client.js'
 import { questProposals, proposalVotes, quests } from '../db/schema.js'
 import { and, eq, desc } from 'drizzle-orm'
-import { randomUUID } from 'crypto'
 import type { AuthRequest } from '../middleware/auth.js'
 import { requireAuth } from '../middleware/auth.js'
 
@@ -55,10 +54,8 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
   const body = req.body
   const now = new Date()
 
-  // クエストを下書きとして作成
-  const questId = randomUUID()
-  await db.insert(quests).values({
-    id: questId,
+  // クエストを proposed として作成 (id は AUTOINCREMENT)
+  const questResult = await db.insert(quests).values({
     title: body.title ?? '新規提案クエスト',
     description: body.description ?? null,
     icon: body.icon ?? null,
@@ -72,10 +69,10 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
     creatorUuid: req.playerUuid!,
     createdAt: now,
     updatedAt: now,
-  })
+  }).returning()
 
   const proposal = {
-    questId,
+    questId: questResult[0].id,
     proposerUuid: req.playerUuid!,
     proposerName: req.playerName!,
     status: 'pending' as const,

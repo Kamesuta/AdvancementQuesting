@@ -16,10 +16,11 @@ const PLAYER_NAME = 'Alex'
 const PLAYER_TOKEN = 'demo-player-token'
 
 // テスト時に data-node-id で特定できるよう固定 ID を使う
-const QUEST_ID_1 = '00000000-0000-0000-0000-000000000001'
-const QUEST_ID_2 = '00000000-0000-0000-0000-000000000002'
-const QUEST_ID_3 = '00000000-0000-0000-0000-000000000003'
-const QUEST_ID_4 = '00000000-0000-0000-0000-000000000004'
+// ファイル名 "00001_基本.json" 形式の連番と対応
+const QUEST_ID_1 = 1
+const QUEST_ID_2 = 2
+const QUEST_ID_3 = 3
+const QUEST_ID_4 = 4
 
 async function seed() {
   migrate(db, { migrationsFolder: './mock-server/db/migrations' })
@@ -33,7 +34,7 @@ async function seed() {
   await db.delete(playerSessions)
   await db.delete(quests)
 
-  // クエストデータ
+  // クエストデータ — id を明示して連番を強制（AUTOINCREMENT だが seed 時は上書き）
   const questData = [
     {
       id: QUEST_ID_1,
@@ -41,7 +42,7 @@ async function seed() {
       description: 'ゲームを始めよう。木を1つ入手してください。',
       icon: 'oak_log',
       category: '序盤',
-      prerequisites: [] as string[],
+      prerequisites: [] as number[],
       conditions: [{ type: 'advancement', advancementId: 'minecraft:story/mine_stone', requiredCount: 1 }],
       rewards: [{ type: 'item', itemId: 'wooden_pickaxe', count: 1 }],
       mapPosition: { x: 100, y: 100 },
@@ -55,7 +56,7 @@ async function seed() {
       description: '石のツルハシを作って採掘を始めよう。',
       icon: 'stone_pickaxe',
       category: '序盤',
-      prerequisites: [] as string[],
+      prerequisites: [] as number[],
       conditions: [{ type: 'advancement', advancementId: 'minecraft:story/upgrade_tools', requiredCount: 1 }],
       rewards: [{ type: 'item', itemId: 'stone_pickaxe', count: 1 }, { type: 'experience', amount: 10, isLevel: false }],
       mapPosition: { x: 250, y: 100 },
@@ -69,7 +70,7 @@ async function seed() {
       description: 'ダイヤモンドを手に入れよう。',
       icon: 'diamond',
       category: '中盤',
-      prerequisites: [] as string[],
+      prerequisites: [] as number[],
       conditions: [{ type: 'advancement', advancementId: 'minecraft:story/mine_diamond', requiredCount: 1 }],
       rewards: [{ type: 'item', itemId: 'diamond_pickaxe', count: 1 }, { type: 'money', amount: 1000 }],
       mapPosition: { x: 400, y: 100 },
@@ -83,7 +84,7 @@ async function seed() {
       description: 'ネザーポータルを作って別の次元へ。',
       icon: 'obsidian',
       category: '中盤',
-      prerequisites: [] as string[],
+      prerequisites: [] as number[],
       conditions: [{ type: 'advancement', advancementId: 'minecraft:story/enter_the_nether', requiredCount: 1 }],
       rewards: [{ type: 'item', itemId: 'fire_resistance', count: 3 }],
       mapPosition: { x: 400, y: 250 },
@@ -98,7 +99,26 @@ async function seed() {
   questData[2].prerequisites = [QUEST_ID_2]
   questData[3].prerequisites = [QUEST_ID_3]
 
-  await db.insert(quests).values(questData).onConflictDoNothing()
+  // id を明示しつつ upsert — 既存行があれば全フィールドを上書き
+  for (const quest of questData) {
+    await db.insert(quests).values(quest).onConflictDoUpdate({
+      target: quests.id,
+      set: {
+        title: quest.title,
+        description: quest.description,
+        icon: quest.icon,
+        category: quest.category,
+        prerequisites: quest.prerequisites,
+        conditions: quest.conditions,
+        rewards: quest.rewards,
+        mapPosition: quest.mapPosition,
+        customButtons: quest.customButtons,
+        status: quest.status,
+        creatorUuid: quest.creatorUuid,
+        updatedAt: new Date(),
+      },
+    })
+  }
 
   // デモ用セッショントークン (7日間有効)
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -138,7 +158,7 @@ async function seed() {
     expiresAt: codeExpiresAt,
   }).onConflictDoNothing()
 
-  // デモ用進捗データ
+  // デモ用進捗データ (questId は integer)
   await db.insert(playerProgress).values({
     playerUuid: DEMO_PLAYER_UUID,
     questId: QUEST_ID_1,

@@ -7,11 +7,11 @@ export const questsApi = {
     return api.get<Quest[]>(`/quests${qs ? `?${qs}` : ''}`)
   },
 
-  get: (id: string) => api.get<Quest>(`/quests/${id}`),
+  get: (id: number) => api.get<Quest>(`/quests/${id}`),
 
   create: (body: QuestCreateInput) => api.post<Quest>('/quests', body),
 
-  update: (id: string, body: QuestUpdateInput) => api.put<Quest>(`/quests/${id}`, body),
+  update: (id: number, body: QuestUpdateInput) => api.put<Quest>(`/quests/${id}`, body),
 
-  delete: (id: string) => api.delete<void>(`/quests/${id}`),
+  delete: (id: number) => api.delete<void>(`/quests/${id}`),
 }

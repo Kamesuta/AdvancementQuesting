@@ -2,7 +2,7 @@ export type ProposalStatus = 'pending' | 'approved' | 'rejected'
 
 export interface Proposal {
   id: number
-  questId: string
+  questId: number
   proposerUuid: string
   proposerName: string
   status: ProposalStatus

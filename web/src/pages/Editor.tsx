@@ -24,8 +24,9 @@ import type { Quest } from '@/types/quest.js'
 // ---------------------------------------------------------------------------
 
 function questToNode(q: Quest): EditorNode {
+  const sid = String(q.id)
   return {
-    id: q.id,
+    id: sid,
     x: q.mapPosition?.x ?? 100,
     y: q.mapPosition?.y ?? 100,
     icon: q.icon ?? 'stone',
@@ -33,12 +34,12 @@ function questToNode(q: Quest): EditorNode {
     subtitle: '',
     description: q.description ?? '',
     tasks: (q.conditions ?? []).map((c, i) => ({
-      id: `${q.id}-t${i}`,
+      id: `${sid}-t${i}`,
       type: c.type,
       value: c.advancementId,
     })),
     rewards: (q.rewards ?? []).map((r, i) => {
-      const base = { id: `${q.id}-r${i}`, value: '' }
+      const base = { id: `${sid}-r${i}`, value: '' }
       if (r.type === 'item') return { ...base, type: 'item', itemType: r.itemId }
       if (r.type === 'experience') return { ...base, type: 'xp', value: String(r.amount) }
       if (r.type === 'money') return { ...base, type: 'xp', value: `💰${r.amount}` }
@@ -51,7 +52,7 @@ function questsToEdges(quests: Quest[]): EditorEdge[] {
   const edges: EditorEdge[] = []
   for (const q of quests) {
     for (const prereqId of (q.prerequisites ?? [])) {
-      edges.push({ id: `e-${prereqId}-${q.id}`, source: prereqId, target: q.id })
+      edges.push({ id: `e-${prereqId}-${q.id}`, source: String(prereqId), target: String(q.id) })
     }
   }
   return edges
@@ -392,20 +393,24 @@ export default function EditorPage() {
     setSaving(true)
     try {
       // APIに存在しないノードを新規作成、既存ノードを更新
-      const existingIds = new Set((questsData ?? []).map((q) => q.id))
+      // node.id は文字列 (questToNode で String(q.id) 変換済み)
+      // API の quest.id は number なので比較時に変換する
+      const existingIds = new Set((questsData ?? []).map((q) => String(q.id)))
       await Promise.all(nodes.map(async (node) => {
         const body = {
           title: node.title,
           description: node.description,
           icon: node.icon,
           mapPosition: { x: node.x, y: node.y },
+          // エッジの source/target は文字列 → API送信時は number 配列に戻す
           prerequisites: edges
             .filter((e) => e.target === node.id)
-            .map((e) => e.source),
+            .map((e) => parseInt(e.source, 10))
+            .filter((n) => !isNaN(n)),
           status: 'public' as const,
         }
         if (existingIds.has(node.id)) {
-          await questsApi.update(node.id, body)
+          await questsApi.update(parseInt(node.id, 10), body)
         } else {
           await questsApi.create({ ...body, category: null, conditions: [], rewards: [], customButtons: [] })
         }
