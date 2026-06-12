@@ -132,3 +132,131 @@ test('スマホ: ナビバー全体がビューポート幅に収まる', async 
   const overflow = await page.locator('nav').evaluate((el) => el.scrollWidth - el.clientWidth)
   expect(overflow).toBeLessThanOrEqual(1)
 })
+
+// ---------------------------------------------------------------------------
+// PCと同等の全シナリオ (スマホサイズで実行)
+// ---------------------------------------------------------------------------
+
+// M-7. ログイン→ログアウト→再ログインを繰り返す
+test('スマホ: ログアウト→再ログインを繰り返しても正常に動く', async ({ page }) => {
+  for (let i = 0; i < 2; i++) {
+    // ログイン
+    await page.locator('button[title="ログイン"]').click()
+    await expect(page.getByPlaceholder('123456')).toBeVisible({ timeout: 3000 })
+    await page.getByText('✏️ 編集者としてログイン').click()
+    await expect(page.locator('button[title*="クリックでログアウト"]')).toBeVisible({ timeout: 8000 })
+    await expect(page.getByText('💾 保存')).toBeVisible()
+
+    // ログアウト
+    await page.locator('button[title*="クリックでログアウト"]').click()
+    await expect(page.locator('button[title*="クリックでログアウト"]')).not.toBeVisible({ timeout: 5000 })
+    await expect(page.getByText('💾 保存')).not.toBeVisible()
+  }
+
+  // プレイヤーとしてログインしても正常
+  await page.locator('button[title="ログイン"]').click()
+  await page.getByText('🎮 プレイヤーとしてログイン').click()
+  await expect(page.locator('button[title*="クリックでログアウト"]')).toBeVisible({ timeout: 8000 })
+  await expect(page.locator('nav button', { hasText: '✨' })).toBeVisible()
+})
+
+// M-8. 編集者: 編集/プレイモード切り替え
+test('スマホ: editor — 編集/プレイモードを切り替えるとツールバーが変わる', async ({ page }) => {
+  await loginAs(page, 'demo-editor-token')
+
+  // 編集モード: 保存・移動・追加ツールがある
+  await expect(page.getByText('💾 保存')).toBeVisible()
+  await expect(page.getByTitle('移動')).toBeVisible()
+  await expect(page.getByTitle('クエストを追加')).toBeVisible()
+
+  // プレイモードへ切り替え
+  await page.locator('nav button[title="プレイモード"]').click()
+  await expect(page.getByText('💾 保存')).not.toBeVisible()
+  await expect(page.getByTitle('移動')).not.toBeVisible()
+  await expect(page.getByTitle('クエストを追加')).not.toBeVisible()
+
+  // プレイモードでノードをクリック → 読み取り専用モーダルが開く
+  const firstNode = page.locator('[data-node-id]').first()
+  const nodeBox = await firstNode.boundingBox()
+  await page.mouse.click(nodeBox!.x + nodeBox!.width / 2, nodeBox!.y + nodeBox!.height / 2)
+  await expect(page.getByPlaceholder('クエストのタイトル')).toBeVisible({ timeout: 5000 })
+  await expect(page.getByPlaceholder('クエストのタイトル')).toHaveAttribute('readonly', '')
+  await page.getByRole('button', { name: '閉じる' }).last().click()
+
+  // 編集モードに戻す
+  await page.locator('nav button[title="編集モード"]').click()
+  await expect(page.getByText('💾 保存')).toBeVisible()
+})
+
+// M-9. プレイヤー: 提案送信フル
+test('スマホ: プレイヤー — 提案モードON→ドラフト追加→送信→終了', async ({ page }) => {
+  // 提案をリセットして安定したノード数を確保
+  await page.request.post('http://localhost:3001/api/test/reset-proposals')
+
+  await loginAs(page, 'demo-player-token')
+
+  await page.locator('nav button', { hasText: '✨' }).click()
+  await page.getByTitle('クエストを追加').click()
+  await page.waitForTimeout(400)
+
+  const canvas = page.locator('.flex-grow.relative.overflow-hidden').first()
+  const baseCount = await page.locator('[data-node-id]').count()
+  await canvas.click({ position: { x: 180, y: 250 } })
+  await expect(page.locator('[data-node-id]')).toHaveCount(baseCount + 1, { timeout: 8000 })
+
+  // 送信
+  await page.locator('nav button', { hasText: '📤' }).click()
+  await expect(page.getByText('提案を送信しました！')).toBeVisible({ timeout: 5000 })
+
+  // 終了: ドラフトノードが消えて送信済み提案ノードのみ残る
+  await page.locator('nav button', { hasText: '✕' }).click()
+  await expect(page.locator('[data-node-id^="draft-"]')).toHaveCount(0, { timeout: 3000 })
+})
+
+// M-10. 承認フル: 承認ボタンがスマホでも見えてクリックできる
+test('スマホ: editor — 提案ノードの承認ボタンが表示されクリックできる', async ({ page }) => {
+  // 事前に提案をリセット
+  await page.request.post('http://localhost:3001/api/test/reset-proposals')
+
+  // プレイヤーが提案
+  await loginAs(page, 'demo-player-token')
+  await page.locator('nav button', { hasText: '✨' }).click()
+  await page.getByTitle('クエストを追加').click()
+  await page.waitForTimeout(200)
+  const canvas = page.locator('.flex-grow.relative.overflow-hidden').first()
+  await canvas.click({ position: { x: 180, y: 350 } })
+  await expect(page.locator('nav button', { hasText: '📤' })).toBeVisible({ timeout: 5000 })
+  await page.locator('nav button', { hasText: '📤' }).click()
+  await expect(page.getByText('提案を送信しました！')).toBeVisible({ timeout: 5000 })
+
+  // editor でログイン
+  await page.locator('button[title*="クリックでログアウト"]').click()
+  await expect(page.locator('button[title*="クリックでログアウト"]')).not.toBeVisible({ timeout: 5000 })
+  await page.locator('button[title="ログイン"]').click()
+  await page.getByText('✏️ 編集者としてログイン').click()
+  await expect(page.locator('button[title*="クリックでログアウト"]')).toBeVisible({ timeout: 8000 })
+
+  // 提案ノードが表示される
+  await expect(page.locator('[data-node-id^="existing-proposal-"]')).toHaveCount(1, { timeout: 5000 })
+  const normalCount = await page.locator('[data-node-id]').count()
+
+  // 提案ノードをクリック → モーダルに承認ボタンが見える
+  const proposalNode = page.locator('[data-node-id^="existing-proposal-"]').first()
+  const box = await proposalNode.boundingBox()
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+
+  // 承認ボタンがモーダルに表示される (スマホでも見える)
+  await expect(page.getByText('✓ 承認')).toBeVisible({ timeout: 3000 })
+
+  // 承認ボタンをタップ
+  await page.getByText('✓ 承認').click()
+  await expect(page.getByText('✓ 承認')).not.toBeVisible({ timeout: 3000 })
+
+  // 提案ノードが通常ノードに変わる
+  await expect(page.locator('[data-node-id^="existing-proposal-"]')).toHaveCount(0, { timeout: 5000 })
+  await expect(page.locator('[data-node-id]')).toHaveCount(normalCount, { timeout: 5000 })
+
+  // 保存して確認
+  await page.getByText('💾 保存').click()
+  await expect(page.getByText('保存しました')).toBeVisible({ timeout: 5000 })
+})

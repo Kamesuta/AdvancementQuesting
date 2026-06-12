@@ -212,23 +212,47 @@ export function QuestEditorModal({
     return (
       <div className="absolute inset-0 z-40 flex flex-col bg-[#2d2f3b] text-white">
         {/* ヘッダー */}
-        <div className="flex items-center gap-3 p-3 border-b border-gray-600 shrink-0">
-          <div
-            className="cursor-pointer bg-black/30 p-2 rounded active:bg-black/50 ring-1 ring-gray-600"
-            onClick={() => openItemSelector({ type: 'quest_icon', nodeId: node.id })}
-          >
-            <ItemIcon type={node.icon} size={28} />
+        <div className="flex flex-col gap-2 p-3 border-b border-gray-600 shrink-0">
+          <div className="flex items-center gap-3">
+            <div
+              className={readOnly ? 'bg-black/30 p-2 rounded ring-1 ring-gray-600' : 'cursor-pointer bg-black/30 p-2 rounded active:bg-black/50 ring-1 ring-gray-600'}
+              onClick={readOnly ? undefined : () => openItemSelector({ type: 'quest_icon', nodeId: node.id })}
+            >
+              <ItemIcon type={node.icon} size={28} />
+            </div>
+            <input
+              type="text"
+              value={node.title}
+              onChange={(e) => updateNode({ ...node, title: e.target.value })}
+              readOnly={readOnly}
+              className={`flex-1 bg-transparent text-xl font-bold border-b border-transparent outline-none placeholder-gray-500 min-w-0 ${readOnly ? 'cursor-default' : 'focus:border-blue-400'}`}
+              placeholder="クエストのタイトル"
+            />
+            <button onClick={close} aria-label="閉じる" className="text-gray-400 p-1 shrink-0">
+              <X size={24} />
+            </button>
           </div>
-          <input
-            type="text"
-            value={node.title}
-            onChange={(e) => updateNode({ ...node, title: e.target.value })}
-            className="flex-1 bg-transparent text-xl font-bold border-b border-transparent focus:border-blue-400 outline-none placeholder-gray-500"
-            placeholder="クエストのタイトル"
-          />
-          <button onClick={close} aria-label="閉じる" className="text-gray-400 p-1">
-            <X size={24} />
-          </button>
+          {/* 承認/却下ボタン */}
+          {proposalMeta && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-gray-400">👍 {proposalMeta.votesUp}</span>
+              <span className="text-xs text-gray-400 mr-auto">by {proposalMeta.proposerName}</span>
+              <button
+                onClick={proposalMeta.onApprove}
+                className="text-xs px-3 py-1.5 border font-bold"
+                style={{ color: '#0a1f0a', backgroundColor: '#7BC67B', borderColor: '#3B7B3B' }}
+              >
+                ✓ 承認
+              </button>
+              <button
+                onClick={proposalMeta.onReject}
+                className="text-xs px-3 py-1.5 border font-bold"
+                style={{ color: '#1f0a0a', backgroundColor: '#C67B7B', borderColor: '#7B3B3B' }}
+              >
+                ✕ 却下
+              </button>
+            </div>
+          )}
         </div>
 
         {/* タブ切り替え */}
@@ -258,13 +282,15 @@ export function QuestEditorModal({
                 type="text"
                 value={node.subtitle}
                 onChange={(e) => updateNode({ ...node, subtitle: e.target.value })}
-                className="w-full bg-transparent text-gray-400 text-sm italic text-center outline-none border-b border-gray-600 focus:border-gray-400 placeholder-gray-600 pb-1"
+                readOnly={readOnly}
+                className={`w-full bg-transparent text-gray-400 text-sm italic text-center outline-none border-b border-gray-600 placeholder-gray-600 pb-1 ${readOnly ? 'cursor-default' : 'focus:border-gray-400'}`}
                 placeholder="補足説明 (例: 掘って、切って、壊して！)"
               />
               <textarea
                 value={node.description}
                 onChange={(e) => updateNode({ ...node, description: e.target.value })}
-                className="w-full flex-1 bg-black/30 border border-gray-700 p-3 text-sm text-gray-200 resize-none outline-none focus:border-blue-500 rounded-sm leading-relaxed"
+                readOnly={readOnly}
+                className={`w-full flex-1 bg-black/30 border border-gray-700 p-3 text-sm text-gray-200 resize-none outline-none rounded-sm leading-relaxed ${readOnly ? 'cursor-default' : 'focus:border-blue-500'}`}
                 placeholder="クエストの詳細な説明..."
               />
             </div>
@@ -282,45 +308,49 @@ export function QuestEditorModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* ヘッダー: アイコン + タイトル */}
-        <div className="flex items-center gap-3 mb-4 pb-2 border-b border-gray-600">
-          <div
-            className={readOnly ? 'bg-black/30 p-2 rounded ring-1 ring-gray-600' : 'cursor-pointer bg-black/30 p-2 rounded hover:bg-black/50 ring-1 ring-gray-600'}
-            onClick={readOnly ? undefined : () => openItemSelector({ type: 'quest_icon', nodeId: node.id })}
-            title={readOnly ? undefined : 'アイコンを変更'}
-          >
-            <ItemIcon type={node.icon} size={32} />
+        <div className="flex flex-col gap-2 mb-4 pb-2 border-b border-gray-600">
+          {/* 1行目: アイコン + タイトル + 閉じるボタン */}
+          <div className="flex items-center gap-3">
+            <div
+              className={readOnly ? 'bg-black/30 p-2 rounded ring-1 ring-gray-600' : 'cursor-pointer bg-black/30 p-2 rounded hover:bg-black/50 ring-1 ring-gray-600'}
+              onClick={readOnly ? undefined : () => openItemSelector({ type: 'quest_icon', nodeId: node.id })}
+              title={readOnly ? undefined : 'アイコンを変更'}
+            >
+              <ItemIcon type={node.icon} size={32} />
+            </div>
+            <input
+              type="text"
+              value={node.title}
+              onChange={(e) => updateNode({ ...node, title: e.target.value })}
+              readOnly={readOnly}
+              className={`flex-1 bg-transparent text-2xl font-bold border-b border-transparent outline-none placeholder-gray-500 min-w-0 ${readOnly ? 'cursor-default' : 'focus:border-blue-400'}`}
+              placeholder="クエストのタイトル"
+            />
+            <button onClick={close} aria-label="閉じる" className="text-gray-400 hover:text-red-400 shrink-0">
+              <X size={28} />
+            </button>
           </div>
-          <input
-            type="text"
-            value={node.title}
-            onChange={(e) => updateNode({ ...node, title: e.target.value })}
-            readOnly={readOnly}
-            className={`flex-1 bg-transparent text-2xl font-bold border-b border-transparent outline-none placeholder-gray-500 ${readOnly ? 'cursor-default' : 'focus:border-blue-400'}`}
-            placeholder="クエストのタイトル"
-          />
+          {/* 2行目: 承認/却下ボタン (proposalMeta がある場合のみ) */}
           {proposalMeta && (
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs text-gray-400">👍 {proposalMeta.votesUp}</span>
-              <span className="text-xs text-gray-400">by {proposalMeta.proposerName}</span>
+              <span className="text-xs text-gray-400 mr-auto">by {proposalMeta.proposerName}</span>
               <button
                 onClick={proposalMeta.onApprove}
-                className="text-xs px-2 py-1 border font-bold"
+                className="text-xs px-3 py-1.5 border font-bold"
                 style={{ color: '#0a1f0a', backgroundColor: '#7BC67B', borderColor: '#3B7B3B' }}
               >
                 ✓ 承認
               </button>
               <button
                 onClick={proposalMeta.onReject}
-                className="text-xs px-2 py-1 border font-bold"
+                className="text-xs px-3 py-1.5 border font-bold"
                 style={{ color: '#1f0a0a', backgroundColor: '#C67B7B', borderColor: '#7B3B3B' }}
               >
                 ✕ 却下
               </button>
             </div>
           )}
-          <button onClick={close} aria-label="閉じる" className="text-gray-400 hover:text-red-400">
-            <X size={28} />
-          </button>
         </div>
 
         {/* 中段: タスク列 / 報酬列 */}
