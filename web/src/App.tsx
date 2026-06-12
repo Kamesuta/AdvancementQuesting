@@ -88,7 +88,8 @@ function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, su
           <div className="flex-1 flex items-center justify-end gap-2 px-2 min-w-0">
             {proposalMode ? (
               <>
-                <span className="text-xs truncate mr-auto" style={{ color: '#EDE09B' }}>
+                {/* sm以上のみ説明テキスト表示 */}
+                <span className="text-xs truncate mr-auto hidden sm:block" style={{ color: '#EDE09B' }}>
                   {proposalCount > 0 ? '提案モード — クエストを追加してください' : '提案モード — 提案済みクエストを確認中'}
                 </span>
                 <button
@@ -96,26 +97,29 @@ function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, su
                   className="text-xs px-2 py-0.5 border-2 font-bold shrink-0"
                   style={{ color: '#2a1f0e', backgroundColor: '#C6C6C6', borderTopColor: 'white', borderLeftColor: 'white', borderBottomColor: '#555', borderRightColor: '#555' }}
                 >
-                  ✕ 終了
+                  ✕ <span className="hidden sm:inline">終了</span>
                 </button>
                 {proposalCount > 0 && (
                   <button
                     onClick={submitProposals}
                     disabled={submitting}
-                    className="text-xs px-3 py-0.5 border-2 font-bold disabled:opacity-50 shrink-0"
+                    className="text-xs px-2 py-0.5 border-2 font-bold disabled:opacity-50 shrink-0"
                     style={{ color: '#0a1f0a', backgroundColor: '#7BC67B', borderTopColor: '#9BE09B', borderLeftColor: '#9BE09B', borderBottomColor: '#3B7B3B', borderRightColor: '#3B7B3B' }}
                   >
-                    {submitting ? '送信中...' : `📤 提案を送信する (${proposalCount})`}
+                    <span>📤</span>
+                    <span className="hidden sm:inline ml-1">{submitting ? '送信中...' : '提案を送信する'}</span>
+                    <span className="ml-1">({proposalCount})</span>
                   </button>
                 )}
               </>
             ) : (
               <button
                 onClick={() => setProposalMode(true)}
-                className="ml-auto text-xs px-3 py-0.5 border-2 font-bold"
+                className="ml-auto text-xs px-2 py-0.5 border-2 font-bold"
                 style={{ color: '#1a1a0a', backgroundColor: '#D4C67B', borderTopColor: '#EDE09B', borderLeftColor: '#EDE09B', borderBottomColor: '#7B6B3B', borderRightColor: '#7B6B3B' }}
               >
-                ✨ クエスト追加を提案する
+                <span>✨</span>
+                <span className="hidden sm:inline ml-1">クエスト追加を提案する</span>
               </button>
             )}
           </div>
