@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { MousePointer2, Plus, ArrowRight, Trash2, Edit3, Save, List, Settings } from 'lucide-react'
+import { MousePointer2, Plus, ArrowRight, Trash2, Edit3, List, Settings } from 'lucide-react'
 import type { EditorNode, EditorEdge, ToolMode, Vec2, ItemSelectorConfig, EditingTaskReward } from '@/components/editor/types.js'
 import { INITIAL_NODES, INITIAL_EDGES, TASK_TYPES } from '@/components/editor/constants.js'
 import { ItemIcon } from '@/components/editor/ItemIcon.js'
@@ -11,10 +11,6 @@ import { TaskRewardEditorModal } from '@/components/editor/modals/TaskRewardEdit
 import { ItemSelectorModal } from '@/components/editor/modals/ItemSelectorModal.js'
 import { RewardTableModal } from '@/components/editor/modals/RewardTableModal.js'
 
-/**
- * モード切替時にキャンバス中央へ一時表示するトースト
- * visible が true になってから数秒で自動的に消える
- */
 function ModeToast({ label, visible }: { label: string; visible: boolean }) {
   return (
     <div
@@ -36,52 +32,37 @@ function ModeToast({ label, visible }: { label: string; visible: boolean }) {
   )
 }
 
-/**
- * クエストマップエディタのメインページ
- *
- * 状態構造:
- *   nodes / edges    — キャンバス上のクエストグラフ
- *   mode             — 現在のツールモード
- *   pan              — キャンバスのパン (スクロール) オフセット
- *   draggingNode     — ドラッグ中のノードID
- *   linkStartNode    — リンク作成の始点ノードID
- *   各種モーダル     — 編集対象を表す ID / config
- */
 export default function EditorPage() {
   const [nodes, setNodes] = useState<EditorNode[]>(INITIAL_NODES)
   const [edges, setEdges] = useState<EditorEdge[]>(INITIAL_EDGES)
-
   const [mode, setMode] = useState<ToolMode>('select')
 
-  // キャンバスパン状態
   const [pan, setPan] = useState<Vec2>({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
   const [panStart, setPanStart] = useState<Vec2>({ x: 0, y: 0 })
 
-  // ノードドラッグ状態
   const [draggingNode, setDraggingNode] = useState<string | null>(null)
   const [dragOffset, setDragOffset] = useState<Vec2>({ x: 0, y: 0 })
 
-  // リンク作成の始点
   const [linkStartNode, setLinkStartNode] = useState<string | null>(null)
-
-  // ホバー中のノード (ツールチップ表示用)
+  // add_link モードでドラッグ中に指が重なっているノード (接続候補)
+  const [linkHoverNode, setLinkHoverNode] = useState<string | null>(null)
   const [hoveredNode, setHoveredNode] = useState<EditorNode | null>(null)
-
-  // キャンバス座標系でのマウス位置 (リンクプレビューに使用)
   const [mousePos, setMousePos] = useState<Vec2>({ x: 0, y: 0 })
 
-  // モーダル管理
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
   const [itemSelectorConfig, setItemSelectorConfig] = useState<ItemSelectorConfig | null>(null)
   const [showRewardTableModal, setShowRewardTableModal] = useState(false)
   const [editingTaskReward, setEditingTaskReward] = useState<EditingTaskReward | null>(null)
 
-  // モード切替トーストの表示状態
   const [toastVisible, setToastVisible] = useState(false)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
   const canvasRef = useRef<HTMLDivElement>(null)
+
+  // タッチハンドラのクロージャから最新値を読めるよう ref でも保持
+  const panStartRef = useRef<Vec2>({ x: 0, y: 0 })
+  const panRef = useRef<Vec2>({ x: 0, y: 0 })
+  const nodesRef = useRef<EditorNode[]>(INITIAL_NODES)
 
   const modeLabel: Record<ToolMode, string> = {
     select:     '選択 / 移動',
@@ -91,9 +72,9 @@ export default function EditorPage() {
     delete:     '削除モード',
   }
 
-  /** モードを切り替えてトーストを一時表示する */
   const changeMode = useCallback((next: ToolMode) => {
     setMode(next)
+    setLinkStartNode(null)
     setToastVisible(true)
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
     toastTimerRef.current = setTimeout(() => setToastVisible(false), 2000)
@@ -103,30 +84,51 @@ export default function EditorPage() {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
   }, [])
 
+  // state が変わったら ref も同期
+  useEffect(() => { panRef.current = pan }, [pan])
+  useEffect(() => { nodesRef.current = nodes }, [nodes])
+
   // ---------------------------------------------------------------------------
   // エッジ操作
   // ---------------------------------------------------------------------------
 
-  /** リンク始点から targetNodeId へエッジを追加 (既存なら削除) */
-  const handleLinkConnection = (targetNodeId: string) => {
-    if (!linkStartNode || linkStartNode === targetNodeId) return
-
-    const existingEdge = edges.find(
-      (e) =>
-        (e.source === linkStartNode && e.target === targetNodeId) ||
-        (e.target === linkStartNode && e.source === targetNodeId),
-    )
-
-    if (existingEdge) {
-      setEdges(edges.filter((e) => e.id !== existingEdge.id))
-    } else {
-      setEdges([...edges, { id: `e-${Date.now()}`, source: linkStartNode, target: targetNodeId }])
-    }
+  const connectNodes = useCallback((startId: string, targetId: string) => {
+    if (startId === targetId) return
+    setEdges((prev) => {
+      const existing = prev.find(
+        (e) =>
+          (e.source === startId && e.target === targetId) ||
+          (e.target === startId && e.source === targetId),
+      )
+      return existing
+        ? prev.filter((e) => e.id !== existing.id)
+        : [...prev, { id: `e-${Date.now()}`, source: startId, target: targetId }]
+    })
     setLinkStartNode(null)
-  }
+    setLinkHoverNode(null)
+  }, [])
+
+  /**
+   * クライアント座標から最も近いノードIDを返す (ノード半径 24px 以内に限る)
+   * タッチイベントは発生元要素に固定されるため elementFromPoint の代わりに使う
+   */
+  const getNodeIdNearPoint = useCallback((clientX: number, clientY: number, excludeId?: string): string | null => {
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (!rect) return null
+    const wx = clientX - rect.left - panRef.current.x
+    const wy = clientY - rect.top - panRef.current.y
+    const HIT_R = 30
+    for (const n of nodesRef.current) {
+      if (n.id === excludeId) continue
+      const dx = n.x - wx
+      const dy = n.y - wy
+      if (dx * dx + dy * dy <= HIT_R * HIT_R) return n.id
+    }
+    return null
+  }, [])
 
   // ---------------------------------------------------------------------------
-  // キャンバスイベント
+  // キャンバスイベント (マウス)
   // ---------------------------------------------------------------------------
 
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
@@ -134,10 +136,9 @@ export default function EditorPage() {
       e.preventDefault()
       setIsPanning(true)
       setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
-      if (mode === 'add_link' && linkStartNode) setLinkStartNode(null)
+      setLinkStartNode(null)
       return
     }
-
     if (mode === 'select' || mode === 'edit_quest') {
       setIsPanning(true)
       setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
@@ -145,44 +146,28 @@ export default function EditorPage() {
       const rect = canvasRef.current!.getBoundingClientRect()
       const wx = e.clientX - rect.left - pan.x
       const wy = e.clientY - rect.top - pan.y
-      setNodes([
-        ...nodes,
-        {
-          id: `node-${Date.now()}`,
-          x: wx, y: wy,
-          icon: 'stone',
-          title: '新規クエスト',
-          subtitle: '',
-          description: '',
-          tasks: [],
-          rewards: [],
-        },
-      ])
+      setNodes((prev) => [...prev, {
+        id: `node-${Date.now()}`, x: wx, y: wy,
+        icon: 'stone', title: '新規クエスト', subtitle: '', description: '',
+        tasks: [], rewards: [],
+      }])
     } else if (mode === 'add_link') {
-      if (linkStartNode) setLinkStartNode(null)
+      // キャンバスの空白クリック → 始点リセット
+      setLinkStartNode(null)
     }
   }
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!canvasRef.current) return
     const rect = canvasRef.current.getBoundingClientRect()
-
-    if (isPanning) {
-      setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y })
-    }
-
+    if (isPanning) setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y })
     const wx = e.clientX - rect.left - pan.x
     const wy = e.clientY - rect.top - pan.y
     setMousePos({ x: wx, y: wy })
-
     if (draggingNode && mode === 'select') {
-      setNodes(
-        nodes.map((n) =>
-          n.id === draggingNode
-            ? { ...n, x: wx - dragOffset.x, y: wy - dragOffset.y }
-            : n,
-        ),
-      )
+      setNodes((prev) => prev.map((n) =>
+        n.id === draggingNode ? { ...n, x: wx - dragOffset.x, y: wy - dragOffset.y } : n,
+      ))
     }
   }
 
@@ -192,7 +177,60 @@ export default function EditorPage() {
   }
 
   // ---------------------------------------------------------------------------
-  // ノードイベント
+  // キャンバスイベント (タッチ) — add_link は touchend のヒットテストで処理
+  // ---------------------------------------------------------------------------
+
+  const handleCanvasTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return
+    const t = e.touches[0]
+    if (mode === 'select' || mode === 'edit_quest') {
+      const newStart = { x: t.clientX - panRef.current.x, y: t.clientY - panRef.current.y }
+      panStartRef.current = newStart
+      setPanStart(newStart)
+      setIsPanning(true)
+    } else if (mode === 'add_node') {
+      e.preventDefault()
+      const rect = canvasRef.current!.getBoundingClientRect()
+      const wx = t.clientX - rect.left - panRef.current.x
+      const wy = t.clientY - rect.top - panRef.current.y
+      setNodes((prev) => [...prev, {
+        id: `node-${Date.now()}`, x: wx, y: wy,
+        icon: 'stone', title: '新規クエスト', subtitle: '', description: '',
+        tasks: [], rewards: [],
+      }])
+    }
+    // add_link はノードの touchstart/touchend で完結するため、ここでは何もしない
+  }
+
+  const handleCanvasTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1 || !canvasRef.current) return
+    const t = e.touches[0]
+    e.preventDefault()
+
+    if ((mode === 'select' || mode === 'edit_quest') && isPanning) {
+      setPan({ x: t.clientX - panStartRef.current.x, y: t.clientY - panStartRef.current.y })
+    }
+
+    // add_link のプレビューライン更新
+    if (mode === 'add_link') {
+      const rect = canvasRef.current.getBoundingClientRect()
+      setMousePos({
+        x: t.clientX - rect.left - panRef.current.x,
+        y: t.clientY - rect.top - panRef.current.y,
+      })
+      // 指が重なっているノードをリアルタイムで検出して光らせる
+      const hoverId = getNodeIdNearPoint(t.clientX, t.clientY, linkStartNode ?? undefined)
+      setLinkHoverNode(hoverId)
+    }
+  }
+
+  const handleCanvasTouchEnd = () => {
+    setIsPanning(false)
+    setLinkHoverNode(null)
+  }
+
+  // ---------------------------------------------------------------------------
+  // ノードイベント (マウス)
   // ---------------------------------------------------------------------------
 
   const handleNodeMouseDown = (e: React.MouseEvent, nodeId: string) => {
@@ -207,21 +245,117 @@ export default function EditorPage() {
       setDragOffset({ x: wx - node.x, y: wy - node.y })
       setDraggingNode(nodeId)
     } else if (mode === 'add_link') {
-      if (!linkStartNode) setLinkStartNode(nodeId)
-      else handleLinkConnection(nodeId)
+      if (!linkStartNode) {
+        setLinkStartNode(nodeId)
+      } else {
+        connectNodes(linkStartNode, nodeId)
+      }
     } else if (mode === 'delete') {
-      setNodes(nodes.filter((n) => n.id !== nodeId))
-      setEdges(edges.filter((e) => e.source !== nodeId && e.target !== nodeId))
+      setNodes((prev) => prev.filter((n) => n.id !== nodeId))
+      setEdges((prev) => prev.filter((e) => e.source !== nodeId && e.target !== nodeId))
     } else if (mode === 'edit_quest') {
       setEditingNodeId(nodeId)
     }
   }
 
-  const handleNodeMouseUp = (e: React.MouseEvent, nodeId: string) => {
+  const handleNodeMouseUp = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (draggingNode) { setDraggingNode(null); return }
-    if (mode === 'add_link' && linkStartNode && linkStartNode !== nodeId) {
-      handleLinkConnection(nodeId)
+    if (draggingNode) setDraggingNode(null)
+  }
+
+  // ---------------------------------------------------------------------------
+  // ノードイベント (タッチ)
+  // ---------------------------------------------------------------------------
+
+  const handleNodeTouchStart = (e: React.TouchEvent, nodeId: string) => {
+    e.stopPropagation()
+    if (e.touches.length !== 1) return
+    const t = e.touches[0]
+
+    if (mode === 'select') {
+      // ドラッグ開始（パンは起動しない）
+      const node = nodes.find((n) => n.id === nodeId)!
+      const rect = canvasRef.current!.getBoundingClientRect()
+      const wx = t.clientX - rect.left - panRef.current.x
+      const wy = t.clientY - rect.top - panRef.current.y
+      setDragOffset({ x: wx - node.x, y: wy - node.y })
+      setDraggingNode(nodeId)
+      setIsPanning(false)
+    } else if (mode === 'add_link') {
+      // プレビューラインの起点を更新
+      const rect = canvasRef.current!.getBoundingClientRect()
+      setMousePos({
+        x: t.clientX - rect.left - panRef.current.x,
+        y: t.clientY - rect.top - panRef.current.y,
+      })
+      if (!linkStartNode) {
+        setLinkStartNode(nodeId)
+      }
+      // 終点判定は touchend のヒットテストで行う
+    }
+  }
+
+  const handleNodeTouchMove = (e: React.TouchEvent, nodeId: string) => {
+    e.stopPropagation()
+    if (e.touches.length !== 1 || !canvasRef.current) return
+    const t = e.touches[0]
+    e.preventDefault()
+
+    if (mode === 'select' && draggingNode === nodeId) {
+      const rect = canvasRef.current.getBoundingClientRect()
+      const wx = t.clientX - rect.left - panRef.current.x
+      const wy = t.clientY - rect.top - panRef.current.y
+      setNodes((prev) => prev.map((n) =>
+        n.id === nodeId ? { ...n, x: wx - dragOffset.x, y: wy - dragOffset.y } : n,
+      ))
+    } else if (mode === 'add_link') {
+      const rect = canvasRef.current.getBoundingClientRect()
+      setMousePos({
+        x: t.clientX - rect.left - panRef.current.x,
+        y: t.clientY - rect.top - panRef.current.y,
+      })
+      // 指が重なっているノードをリアルタイムで検出して光らせる
+      const hoverId = getNodeIdNearPoint(t.clientX, t.clientY, linkStartNode ?? undefined)
+      setLinkHoverNode(hoverId)
+    }
+  }
+
+  const handleNodeTouchEnd = (e: React.TouchEvent, nodeId: string) => {
+    e.stopPropagation()
+
+    if (mode === 'select') {
+      setDraggingNode(null)
+      return
+    }
+
+    if (mode === 'add_link') {
+      const touch = e.changedTouches[0]
+      // touchmove で追跡済みの linkHoverNode を優先、なければ離した座標でも判定
+      const targetId = linkHoverNode ?? getNodeIdNearPoint(touch.clientX, touch.clientY, nodeId)
+      setLinkHoverNode(null)
+
+      if (!linkStartNode) {
+        // 始点がなければ今タップしたノードを始点に
+        setLinkStartNode(nodeId)
+      } else if (targetId) {
+        // 接続先が確定 → 接続
+        connectNodes(linkStartNode, targetId)
+      } else {
+        // ノード外で離した → 始点リセット
+        setLinkStartNode(null)
+      }
+      return
+    }
+
+    if (mode === 'delete') {
+      setNodes((prev) => prev.filter((n) => n.id !== nodeId))
+      setEdges((prev) => prev.filter((ed) => ed.source !== nodeId && ed.target !== nodeId))
+      return
+    }
+
+    if (mode === 'edit_quest') {
+      setEditingNodeId(nodeId)
+      return
     }
   }
 
@@ -232,24 +366,17 @@ export default function EditorPage() {
   const handleItemSelect = (itemType: string) => {
     const config = itemSelectorConfig
     if (!config) return
-
-    setNodes(
-      nodes.map((n) => {
-        if (n.id !== config.nodeId) return n
-        if (config.type === 'quest_icon') {
-          return { ...n, icon: itemType }
-        } else if (config.type === 'task_item') {
-          return { ...n, tasks: n.tasks.map((t) => t.id === config.taskId ? { ...t, itemType } : t) }
-        } else {
-          return { ...n, rewards: n.rewards.map((r) => r.id === config.rewardId ? { ...r, itemType } : r) }
-        }
-      }),
-    )
+    setNodes((prev) => prev.map((n) => {
+      if (n.id !== config.nodeId) return n
+      if (config.type === 'quest_icon') return { ...n, icon: itemType }
+      if (config.type === 'task_item') return { ...n, tasks: n.tasks.map((t) => t.id === config.taskId ? { ...t, itemType } : t) }
+      return { ...n, rewards: n.rewards.map((r) => r.id === config.rewardId ? { ...r, itemType } : r) }
+    }))
     setItemSelectorConfig(null)
   }
 
   const updateNode = (updated: EditorNode) => {
-    setNodes(nodes.map((n) => (n.id === updated.id ? updated : n)))
+    setNodes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)))
   }
 
   // ---------------------------------------------------------------------------
@@ -260,7 +387,6 @@ export default function EditorPage() {
   const taskRewardNode = editingTaskReward ? nodes.find((n) => n.id === editingTaskReward.nodeId) : null
 
   return (
-    // flex-1 で親 (App の h-screen flex-col) の残り高さを全部埋める
     <div
       className="flex-1 relative flex overflow-hidden select-none min-h-0"
       style={{ fontFamily: '"Minecraftia", "Courier New", Courier, monospace' }}
@@ -291,12 +417,16 @@ export default function EditorPage() {
           backgroundSize: '40px 40px',
           backgroundPosition: `${pan.x}px ${pan.y}px`,
           boxShadow: 'inset 0 0 50px rgba(0, 0, 0, 0.4)',
+          touchAction: 'none',
         }}
         onMouseDown={handleCanvasMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onContextMenu={(e) => e.preventDefault()}
+        onTouchStart={handleCanvasTouchStart}
+        onTouchMove={handleCanvasTouchMove}
+        onTouchEnd={handleCanvasTouchEnd}
       >
         {/* パン変換をかけた描画レイヤー */}
         <div
@@ -318,25 +448,31 @@ export default function EditorPage() {
             })()}
           </svg>
 
-          {/* ノード */}
+          {/* ノード — data-node-id でタッチヒットテストに使う */}
           {nodes.map((node) => (
             <div
               key={node.id}
+              data-node-id={node.id}
               className={`absolute w-12 h-12 -ml-6 -mt-6 flex items-center justify-center cursor-pointer z-10 transition-transform ${
                 draggingNode === node.id ? 'scale-110 z-20' : ''
               }`}
               style={{ left: node.x, top: node.y }}
               onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
-              onMouseUp={(e) => handleNodeMouseUp(e, node.id)}
+              onMouseUp={(e) => handleNodeMouseUp(e)}
               onMouseEnter={() => setHoveredNode(node)}
               onMouseLeave={() => setHoveredNode(null)}
+              onTouchStart={(e) => handleNodeTouchStart(e, node.id)}
+              onTouchMove={(e) => handleNodeTouchMove(e, node.id)}
+              onTouchEnd={(e) => handleNodeTouchEnd(e, node.id)}
             >
+              {/* ノード背景円 */}
               <div
                 className={[
                   'absolute inset-0 rounded-full',
-                  linkStartNode === node.id ? 'ring-4 ring-green-500' : '',
-                  mode === 'delete'         ? 'hover:ring-4 hover:ring-red-500' : '',
-                  mode === 'edit_quest'     ? 'hover:ring-4 hover:ring-yellow-400' : '',
+                  linkStartNode === node.id  ? 'ring-4 ring-green-500' : '',
+                  linkHoverNode === node.id  ? 'ring-4 ring-yellow-300 scale-110' : '',
+                  mode === 'delete'          ? 'hover:ring-4 hover:ring-red-500' : '',
+                  mode === 'edit_quest'      ? 'hover:ring-4 hover:ring-yellow-400' : '',
                 ].join(' ')}
               >
                 <div className="w-full h-full bg-black/50 border-2 border-[#839384] rounded-full shadow-inner flex items-center justify-center" />
@@ -348,10 +484,10 @@ export default function EditorPage() {
           ))}
         </div>
 
-        {/* ===== ツールチップ (ホバー時) ===== */}
+        {/* ===== ツールチップ (ホバー時・デスクトップのみ) ===== */}
         {hoveredNode && !draggingNode && !isPanning && !editingNodeId && !itemSelectorConfig && !editingTaskReward && (
           <div
-            className="absolute z-30 bg-black/90 border-2 border-purple-700 text-white p-3 pointer-events-none shadow-xl max-w-xs"
+            className="absolute z-30 bg-black/90 border-2 border-purple-700 text-white p-3 pointer-events-none shadow-xl max-w-xs hidden sm:block"
             style={{
               left: Math.min(mousePos.x + pan.x + 20, (canvasRef.current?.offsetWidth ?? 0) - 200),
               top:  Math.min(mousePos.y + pan.y + 20, (canvasRef.current?.offsetHeight ?? 0) - 100),
