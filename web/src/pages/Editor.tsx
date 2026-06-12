@@ -779,6 +779,7 @@ export default function EditorPage() {
   const handleApprove = async (proposalId: number) => {
     await proposalsApi.approve(proposalId)
     queryClient.invalidateQueries({ queryKey: ['proposals'] })
+    queryClient.invalidateQueries({ queryKey: ['quests'] })
     setEditingProposalNodeId(null)
   }
 

@@ -8,7 +8,8 @@ import authRoutes from './routes/auth.js'
 import questRoutes from './routes/quests.js'
 import progressRoutes from './routes/progress.js'
 import proposalRoutes from './routes/proposals.js'
-import { playerSessions, authCodes } from './db/schema.js'
+import { playerSessions, authCodes, questProposals, proposalVotes, quests } from './db/schema.js'
+import { eq } from 'drizzle-orm'
 
 config()
 
@@ -54,6 +55,14 @@ app.post('/api/test/restore-auth-code', async (_req, res) => {
     target: authCodes.code,
     set: { used: false, expiresAt: codeExpiresAt },
   })
+  res.json({ ok: true })
+})
+
+// テスト用: 提案・proposed クエストをすべて削除してクリーンな状態に
+app.post('/api/test/reset-proposals', async (_req, res) => {
+  await db.delete(proposalVotes)
+  await db.delete(questProposals)
+  await db.delete(quests).where(eq(quests.status, 'proposed'))
   res.json({ ok: true })
 })
 

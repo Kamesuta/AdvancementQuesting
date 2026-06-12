@@ -21,6 +21,7 @@
  *  14. 保存永続化: 編集者がノードを移動して保存後リロードしても位置が保持される
  *  15. ログアウト→再ログインを繰り返しても正常にロールが表示される
  *  16. 提案送信フル: 送信後も提案モードで見える / 終了後・ログアウト後・再提案モードで表示制御が正しい
+ *  17. 承認フル: 編集者が提案を承認 → 通常ノードとして表示 → 保存 → リロード後も保持
  */
 
 import { test, expect, type Page } from '@playwright/test'
@@ -451,4 +452,65 @@ test('提案送信: 送信後も提案モードで見える / 終了後・ログ
   await expect(page.locator('nav').getByText('編集者')).toBeVisible({ timeout: 8000 })
   // [編集者] 提案ノードが見える (編集者は常にproposalsを取得する)
   await expect(page.locator('[data-node-id]')).toHaveCount(baseCount + 1, { timeout: 5000 })
+})
+
+// 17. 承認フル
+test('承認フル: 編集者が提案を承認 → 通常ノード表示 → 保存 → リロード後も保持', async ({ page }) => {
+  // テスト間の独立性: 前のテストで残った提案をクリア
+  await page.request.post('http://localhost:3001/api/test/reset-proposals')
+
+  // ---- Step 1: プレイヤーがクエストを提案 ----
+  await loginAs(page, 'demo-player-token')
+  await page.getByText('クエスト追加を提案する').click()
+  await page.getByTitle('クエストを追加').click()
+  await page.waitForTimeout(200)
+
+  const canvas = page.locator('.flex-grow.relative.overflow-hidden').first()
+  // 提案ノードを追加 (既存ノードと被らない位置)
+  await canvas.click({ position: { x: 550, y: 350 } })
+  await expect(page.getByText(/提案を送信する/)).toBeVisible({ timeout: 3000 })
+
+  await page.getByText(/提案を送信する/).click()
+  await expect(page.getByText('提案を送信しました！')).toBeVisible({ timeout: 5000 })
+
+  // ログアウト
+  await page.locator('button[title="ログアウト"]').click()
+  await expect(page.locator('nav').getByText('プレイヤー')).not.toBeVisible({ timeout: 5000 })
+
+  // ---- Step 2: 編集者でログイン → 提案ノードが見える ----
+  await page.locator('button[title="ログイン"]').click()
+  await page.getByText('✏️ 編集者としてログイン').click()
+  await expect(page.locator('nav').getByText('編集者')).toBeVisible({ timeout: 8000 })
+
+  // 編集者は常に proposals を取得するので提案ノードが見えるはず
+  // 提案ノード (existing-proposal-*) が1件表示されるまで待つ
+  await expect(page.locator('[data-node-id^="existing-proposal-"]')).toHaveCount(1, { timeout: 5000 })
+  // 提案ノード込みの総数を基準として記録
+  const normalCount = await page.locator('[data-node-id]').count()
+
+  // ---- Step 3: 提案ノードをクリック → モーダルに承認ボタン ----
+  const proposalNode = page.locator('[data-node-id^="existing-proposal-"]').first()
+  const box = await proposalNode.boundingBox()
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  await expect(page.getByText('✓ 承認')).toBeVisible({ timeout: 3000 })
+
+  // ---- Step 4: 承認ボタンを押す ----
+  await page.getByText('✓ 承認').click()
+
+  // モーダルが閉じる
+  await expect(page.getByText('✓ 承認')).not.toBeVisible({ timeout: 3000 })
+
+  // 提案ノードが消え、通常ノードとして追加される
+  await expect(page.locator('[data-node-id^="existing-proposal-"]')).toHaveCount(0, { timeout: 5000 })
+  await expect(page.locator('[data-node-id]')).toHaveCount(normalCount, { timeout: 5000 })
+
+  // ---- Step 5: 保存ボタンを押す ----
+  await page.getByText('💾 保存').click()
+  await expect(page.getByText('保存しました')).toBeVisible({ timeout: 5000 })
+
+  // ---- Step 6: リロード後も承認済みクエストが表示される ----
+  await page.request.post('http://localhost:3001/api/auth/quick', { data: { token: 'demo-editor-token' } })
+  await page.reload()
+  await expect(page.locator('nav').getByText('編集者')).toBeVisible({ timeout: 8000 })
+  await expect(page.locator('[data-node-id]')).toHaveCount(normalCount, { timeout: 5000 })
 })
