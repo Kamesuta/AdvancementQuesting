@@ -120,8 +120,8 @@ export function QuestEditorModal({
         {node.tasks?.map((task) => (
           <div
             key={task.id}
-            className="flex items-center gap-3 p-2 hover:bg-white/5 active:bg-white/10 group bg-black/30 rounded-sm border border-transparent hover:border-gray-500 cursor-pointer transition-colors"
-            onClick={() => openTaskRewardEditor({ nodeId: node.id, category: 'task', itemId: task.id })}
+            className={`flex items-center gap-3 p-2 bg-black/30 rounded-sm border border-transparent transition-colors ${readOnly ? '' : 'hover:bg-white/5 active:bg-white/10 hover:border-gray-500 cursor-pointer'}`}
+            onClick={readOnly ? undefined : () => openTaskRewardEditor({ nodeId: node.id, category: 'task', itemId: task.id })}
           >
             <div className="shrink-0">
               {task.type === 'item' ? (
@@ -181,8 +181,8 @@ export function QuestEditorModal({
         {node.rewards?.map((reward) => (
           <div
             key={reward.id}
-            className="flex items-center gap-3 p-2 hover:bg-white/5 active:bg-white/10 group bg-black/30 rounded-sm border border-transparent hover:border-gray-500 cursor-pointer transition-colors"
-            onClick={() => openTaskRewardEditor({ nodeId: node.id, category: 'reward', itemId: reward.id })}
+            className={`flex items-center gap-3 p-2 bg-black/30 rounded-sm border border-transparent transition-colors ${readOnly ? '' : 'hover:bg-white/5 active:bg-white/10 hover:border-gray-500 cursor-pointer'}`}
+            onClick={readOnly ? undefined : () => openTaskRewardEditor({ nodeId: node.id, category: 'reward', itemId: reward.id })}
           >
             <div className="shrink-0">
               {reward.type === 'item' ? (

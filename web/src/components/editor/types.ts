@@ -33,6 +33,7 @@ export interface EditorReward {
   type: string      // REWARD_TYPES の id
   value: string
   itemType?: string
+  count?: number    // type === 'item' の場合の個数
 }
 
 /** マップ上に配置する1つのクエストノード */

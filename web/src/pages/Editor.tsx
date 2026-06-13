@@ -43,7 +43,7 @@ function questToNode(q: Quest): EditorNode {
     })),
     rewards: (q.rewards ?? []).map((r, i) => {
       const base = { id: `${sid}-r${i}`, value: '' }
-      if (r.type === 'item') return { ...base, type: 'item', itemType: r.itemId }
+      if (r.type === 'item') return { ...base, type: 'item', itemType: r.itemId, count: r.count ?? 1 }
       if (r.type === 'experience') return { ...base, type: 'xp', value: String(r.amount) }
       if (r.type === 'money') return { ...base, type: 'xp', value: `💰${r.amount}` }
       return { ...base, type: r.type }
@@ -478,6 +478,13 @@ export default function EditorPage() {
       // node.id は文字列 (questToNode で String(q.id) 変換済み)
       // API の quest.id は number なので比較時に変換する
       const existingIds = new Set((questsData ?? []).map((q) => String(q.id)))
+      const currentNodeIds = new Set(nodes.map((n) => n.id))
+      // APIにあるがエディタから消えたクエストを削除
+      await Promise.all(
+        (questsData ?? [])
+          .filter((q) => !currentNodeIds.has(String(q.id)))
+          .map((q) => questsApi.delete(q.id))
+      )
       await Promise.all(nodes.map(async (node) => {
         // EditorTask → API conditions
         const conditions: Condition[] = (node.tasks ?? []).map((t) => {
@@ -490,7 +497,7 @@ export default function EditorPage() {
         })
         // EditorReward → API rewards
         const rewards: Reward[] = (node.rewards ?? []).map((r) => {
-          if (r.type === 'item') return { type: 'item' as const, itemId: r.itemType ?? 'stone', count: 1 }
+          if (r.type === 'item') return { type: 'item' as const, itemId: r.itemType ?? 'stone', count: r.count ?? 1 }
           if (r.type === 'xp') return { type: 'experience' as const, amount: parseInt(r.value || '0', 10), isLevel: false }
           if (r.type === 'command') return { type: 'command' as const, command: r.value, opLevel: 0 }
           return { type: 'command' as const, command: '', opLevel: 0 }
