@@ -5,11 +5,6 @@ import type { EditorNode, EditorEdge } from './types.js'
 // ---------------------------------------------------------------------------
 export const TASK_TYPES = [
   { id: 'item',        label: 'アイテム',       icon: '📦' },
-  { id: 'stat',        label: '統計',           icon: '📊' },
-  { id: 'kill',        label: 'エンティティ討伐', icon: '⚔️' },
-  { id: 'location',    label: '場所',           icon: '📍' },
-  { id: 'checkmark',   label: 'チェックマーク', icon: '✔️' },
-  { id: 'advancement', label: '進捗',           icon: '🏆' },
 ] as const
 
 // ---------------------------------------------------------------------------
@@ -17,13 +12,6 @@ export const TASK_TYPES = [
 // ---------------------------------------------------------------------------
 export const REWARD_TYPES = [
   { id: 'item',        label: 'アイテム',   icon: '📦' },
-  { id: 'choice',      label: '報酬選択',   icon: '🎁' },
-  { id: 'random',      label: 'ランダム報酬', icon: '🎲' },
-  { id: 'loot',        label: 'ルート報酬', icon: '💰' },
-  { id: 'command',     label: 'コマンド',   icon: '💻' },
-  { id: 'xp',          label: '経験値',     icon: '🟢' },
-  { id: 'advancement', label: '進捗',       icon: '🏆' },
-  { id: 'toast',       label: 'トースト',   icon: '🍞' },
 ] as const
 
 // ---------------------------------------------------------------------------

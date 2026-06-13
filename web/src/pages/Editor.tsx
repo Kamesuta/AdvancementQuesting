@@ -974,7 +974,7 @@ export default function EditorPage() {
   const showAddLink    = isEditor || proposalMode
   const showMove       = isEditor || proposalMode
   const showDelete     = isEditor || proposalMode
-  const showRewardTable = isEditor
+  const showRewardTable = false
   const showSettings   = isEditor
 
   // ---------------------------------------------------------------------------
