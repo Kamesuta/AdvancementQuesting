@@ -24,6 +24,8 @@ interface QuestEditorModalProps {
   openTaskRewardEditor: (config: EditingTaskReward) => void
   proposalMeta?: ProposalMeta
   readOnly?: boolean
+  /** クエスト完了済みで未受取の場合に渡す。呼び出すと報酬受取APIを実行する */
+  claimReward?: () => Promise<void>
 }
 
 /**
@@ -39,9 +41,11 @@ export function QuestEditorModal({
   openTaskRewardEditor,
   proposalMeta,
   readOnly = false,
+  claimReward,
 }: QuestEditorModalProps) {
   const [showTaskMenu, setShowTaskMenu] = useState(false)
   const [showRewardMenu, setShowRewardMenu] = useState(false)
+  const [claiming, setClaiming] = useState(false)
   // スマホ用: タスク/報酬どちらのタブを表示するか
   const [activeTab, setActiveTab] = useState<'task' | 'reward'>('task')
 
@@ -234,44 +238,64 @@ export function QuestEditorModal({
               <X size={24} />
             </button>
           </div>
-          {/* いいね・承認/却下ボタン */}
-          {proposalMeta && (
+          {/* 報酬受取ボタン / いいね・承認/却下ボタン */}
+          {(claimReward || proposalMeta) && (
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-gray-400 mr-auto">by {proposalMeta.proposerName}</span>
-              {proposalMeta.onVote && (
+              {claimReward && (
                 <button
-                  onClick={() => proposalMeta.onVote!('up')}
-                  className="text-xs px-3 py-1.5 border font-bold"
+                  onClick={async () => { setClaiming(true); try { await claimReward() } finally { setClaiming(false) } }}
+                  disabled={claiming}
+                  className="text-sm px-4 py-1.5 border-2 font-bold mr-auto"
                   style={{
-                    color: proposalMeta.myVote === 'up' ? '#fff' : '#0a1f0a',
-                    backgroundColor: proposalMeta.myVote === 'up' ? '#3B7B3B' : '#7BC67B',
-                    borderColor: '#3B7B3B',
+                    color: '#0a1f0a',
+                    backgroundColor: claiming ? '#5B9B5B' : '#7BC67B',
+                    borderTopColor: '#A0E0A0',
+                    borderLeftColor: '#A0E0A0',
+                    borderBottomColor: '#3B7B3B',
+                    borderRightColor: '#3B7B3B',
+                    cursor: claiming ? 'wait' : 'pointer',
                   }}
                 >
-                  👍 {proposalMeta.votesUp}
+                  {claiming ? '受取中...' : '★ 報酬を受け取る'}
                 </button>
               )}
-              {!proposalMeta.onVote && (
-                <span className="text-xs text-gray-400">👍 {proposalMeta.votesUp}</span>
-              )}
-              {proposalMeta.onApprove && (
-                <button
-                  onClick={proposalMeta.onApprove}
-                  className="text-xs px-3 py-1.5 border font-bold"
-                  style={{ color: '#0a1f0a', backgroundColor: '#7BC67B', borderColor: '#3B7B3B' }}
-                >
-                  ✓ 承認
-                </button>
-              )}
-              {proposalMeta.onReject && (
-                <button
-                  onClick={proposalMeta.onReject}
-                  className="text-xs px-3 py-1.5 border font-bold"
-                  style={{ color: '#1f0a0a', backgroundColor: '#C67B7B', borderColor: '#7B3B3B' }}
-                >
-                  ✕ 却下
-                </button>
-              )}
+              {proposalMeta && (<>
+                <span className="text-xs text-gray-400 mr-auto">by {proposalMeta.proposerName}</span>
+                {proposalMeta.onVote && (
+                  <button
+                    onClick={() => proposalMeta.onVote!('up')}
+                    className="text-xs px-3 py-1.5 border font-bold"
+                    style={{
+                      color: proposalMeta.myVote === 'up' ? '#fff' : '#0a1f0a',
+                      backgroundColor: proposalMeta.myVote === 'up' ? '#3B7B3B' : '#7BC67B',
+                      borderColor: '#3B7B3B',
+                    }}
+                  >
+                    👍 {proposalMeta.votesUp}
+                  </button>
+                )}
+                {!proposalMeta.onVote && (
+                  <span className="text-xs text-gray-400">👍 {proposalMeta.votesUp}</span>
+                )}
+                {proposalMeta.onApprove && (
+                  <button
+                    onClick={proposalMeta.onApprove}
+                    className="text-xs px-3 py-1.5 border font-bold"
+                    style={{ color: '#0a1f0a', backgroundColor: '#7BC67B', borderColor: '#3B7B3B' }}
+                  >
+                    ✓ 承認
+                  </button>
+                )}
+                {proposalMeta.onReject && (
+                  <button
+                    onClick={proposalMeta.onReject}
+                    className="text-xs px-3 py-1.5 border font-bold"
+                    style={{ color: '#1f0a0a', backgroundColor: '#C67B7B', borderColor: '#7B3B3B' }}
+                  >
+                    ✕ 却下
+                  </button>
+                )}
+              </>)}
             </div>
           )}
         </div>
@@ -351,44 +375,64 @@ export function QuestEditorModal({
               <X size={28} />
             </button>
           </div>
-          {/* 2行目: いいね・承認/却下ボタン (proposalMeta がある場合のみ) */}
-          {proposalMeta && (
+          {/* 2行目: 報酬受取ボタン / いいね・承認/却下ボタン */}
+          {(claimReward || proposalMeta) && (
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-gray-400 mr-auto">by {proposalMeta.proposerName}</span>
-              {proposalMeta.onVote && (
+              {claimReward && (
                 <button
-                  onClick={() => proposalMeta.onVote!('up')}
-                  className="text-xs px-3 py-1.5 border font-bold"
+                  onClick={async () => { setClaiming(true); try { await claimReward() } finally { setClaiming(false) } }}
+                  disabled={claiming}
+                  className="text-sm px-4 py-1.5 border-2 font-bold mr-auto"
                   style={{
-                    color: proposalMeta.myVote === 'up' ? '#fff' : '#0a1f0a',
-                    backgroundColor: proposalMeta.myVote === 'up' ? '#3B7B3B' : '#7BC67B',
-                    borderColor: '#3B7B3B',
+                    color: '#0a1f0a',
+                    backgroundColor: claiming ? '#5B9B5B' : '#7BC67B',
+                    borderTopColor: '#A0E0A0',
+                    borderLeftColor: '#A0E0A0',
+                    borderBottomColor: '#3B7B3B',
+                    borderRightColor: '#3B7B3B',
+                    cursor: claiming ? 'wait' : 'pointer',
                   }}
                 >
-                  👍 {proposalMeta.votesUp}
+                  {claiming ? '受取中...' : '★ 報酬を受け取る'}
                 </button>
               )}
-              {!proposalMeta.onVote && (
-                <span className="text-xs text-gray-400">👍 {proposalMeta.votesUp}</span>
-              )}
-              {proposalMeta.onApprove && (
-                <button
-                  onClick={proposalMeta.onApprove}
-                  className="text-xs px-3 py-1.5 border font-bold"
-                  style={{ color: '#0a1f0a', backgroundColor: '#7BC67B', borderColor: '#3B7B3B' }}
-                >
-                  ✓ 承認
-                </button>
-              )}
-              {proposalMeta.onReject && (
-                <button
-                  onClick={proposalMeta.onReject}
-                  className="text-xs px-3 py-1.5 border font-bold"
-                  style={{ color: '#1f0a0a', backgroundColor: '#C67B7B', borderColor: '#7B3B3B' }}
-                >
-                  ✕ 却下
-                </button>
-              )}
+              {proposalMeta && (<>
+                <span className="text-xs text-gray-400 mr-auto">by {proposalMeta.proposerName}</span>
+                {proposalMeta.onVote && (
+                  <button
+                    onClick={() => proposalMeta.onVote!('up')}
+                    className="text-xs px-3 py-1.5 border font-bold"
+                    style={{
+                      color: proposalMeta.myVote === 'up' ? '#fff' : '#0a1f0a',
+                      backgroundColor: proposalMeta.myVote === 'up' ? '#3B7B3B' : '#7BC67B',
+                      borderColor: '#3B7B3B',
+                    }}
+                  >
+                    👍 {proposalMeta.votesUp}
+                  </button>
+                )}
+                {!proposalMeta.onVote && (
+                  <span className="text-xs text-gray-400">👍 {proposalMeta.votesUp}</span>
+                )}
+                {proposalMeta.onApprove && (
+                  <button
+                    onClick={proposalMeta.onApprove}
+                    className="text-xs px-3 py-1.5 border font-bold"
+                    style={{ color: '#0a1f0a', backgroundColor: '#7BC67B', borderColor: '#3B7B3B' }}
+                  >
+                    ✓ 承認
+                  </button>
+                )}
+                {proposalMeta.onReject && (
+                  <button
+                    onClick={proposalMeta.onReject}
+                    className="text-xs px-3 py-1.5 border font-bold"
+                    style={{ color: '#1f0a0a', backgroundColor: '#C67B7B', borderColor: '#7B3B3B' }}
+                  >
+                    ✕ 却下
+                  </button>
+                )}
+              </>)}
             </div>
           )}
         </div>

@@ -1164,6 +1164,15 @@ export default function EditorPage() {
             openItemSelector={setItemSelectorConfig}
             openTaskRewardEditor={setEditingTaskReward}
             readOnly={isReadOnlyNode(editingNodeId!)}
+            claimReward={(() => {
+              const p = progressData?.find((pr) => String(pr.questId) === editingNodeId)
+              if (!p?.completed || p.rewardClaimed) return undefined
+              return async () => {
+                await progressApi.claim(editingNodeId!)
+                await queryClient.invalidateQueries({ queryKey: ['progress'] })
+                showToast('報酬を受け取りました！')
+              }
+            })()}
           />
         )}
 
