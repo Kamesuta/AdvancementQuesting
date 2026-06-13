@@ -2,9 +2,26 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AdvancementQuesting</title>
+    <script>
+      // Minecraftテクスチャ(16x16)をピクセルパーフェクトに拡大してfaviconとして設定
+      const img = new Image()
+      img.src = '/mc/textures/item/writable_book.png'
+      img.onload = () => {
+        const size = 64
+        const c = document.createElement('canvas')
+        c.width = c.height = size
+        const ctx = c.getContext('2d')
+        ctx.imageSmoothingEnabled = false
+        ctx.drawImage(img, 0, 0, size, size)
+        const link = document.createElement('link')
+        link.rel = 'icon'
+        link.type = 'image/png'
+        link.href = c.toDataURL()
+        document.head.appendChild(link)
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
