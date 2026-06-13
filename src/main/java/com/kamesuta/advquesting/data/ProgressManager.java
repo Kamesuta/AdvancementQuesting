@@ -245,7 +245,7 @@ public class ProgressManager {
         for (Map<String, Object> reward : rewards) {
             String type = (String) reward.get("type");
             if ("item".equals(type)) {
-                String itemType = (String) reward.get("itemType");
+                String itemType = (String) reward.getOrDefault("itemType", reward.get("itemId"));
                 int count = ((Number) reward.getOrDefault("count", 1)).intValue();
                 try {
                     org.bukkit.Material mat = org.bukkit.Material.matchMaterial(itemType.toUpperCase());
