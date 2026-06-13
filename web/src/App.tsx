@@ -181,16 +181,20 @@ function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, su
 function AppInner() {
   const queryClient = useQueryClient()
   const [viewMode, setViewMode] = useState<ViewMode>('edit')
-  const [questCompleteEvent, setQuestCompleteEvent] = useState<QuestCompleteEvent | null>(null)
+  // 完了オーバーレイ用イベント (nonce 付きで「新しい通知か」を判定する)
+  const [questCompleteEvent, setQuestCompleteEvent] = useState<(QuestCompleteEvent & { nonce: number }) | null>(null)
   // マップ演出トリガー: 完了したクエストID + 毎回変わる nonce
   const [lastQuestComplete, setLastQuestComplete] = useState<QuestCompleteNotice | null>(null)
 
   const handleQuestComplete = useCallback((event: QuestCompleteEvent) => {
-    setQuestCompleteEvent(event)
-    setLastQuestComplete({ questId: event.questId, nonce: Date.now() })
+    const nonce = Date.now()
+    setQuestCompleteEvent({ ...event, nonce })
+    setLastQuestComplete({ questId: event.questId, nonce })
     // 進捗データを再取得してノードの達成済み表示を更新
     queryClient.invalidateQueries({ queryKey: ['progress'] })
   }, [queryClient])
+
+  const dismissOverlay = useCallback(() => setQuestCompleteEvent(null), [])
 
   // 進捗変化通知（管理コマンドでの達成/未達成切替など）— 演出なしで表示だけ更新
   const handleProgressUpdate = useCallback(() => {
@@ -272,7 +276,7 @@ function AppInner() {
       </div>
       <QuestCompleteOverlay
         event={questCompleteEvent}
-        onDone={() => setQuestCompleteEvent(null)}
+        onDismiss={dismissOverlay}
       />
     </EditorContext.Provider>
   )

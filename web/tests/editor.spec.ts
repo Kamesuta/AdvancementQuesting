@@ -598,6 +598,67 @@ test('SSE通知: クエスト完了でブラウザにオーバーレイが表示
   await expect(page.getByTestId('quest-complete-overlay')).toBeVisible({ timeout: 5000 })
   await expect(page.getByText('クエスト完了！')).toBeVisible()
   await expect(page.getByText('テストクエスト達成！')).toBeVisible()
+  // 達成者名は表示しない
+  await expect(page.getByText('が達成しました')).not.toBeVisible()
+})
+
+// 20b. 完了オーバーレイ: クリックで閉じる
+test('完了オーバーレイ: クリックで閉じる (20b)', async ({ page }) => {
+  await loginAs(page, 'demo-editor-token')
+  await page.request.post('http://localhost:3001/api/test/notify-quest-complete', {
+    data: { token: 'demo-editor-token', questId: 1, questTitle: 'クリックで閉じる', playerName: 'Editor' },
+  })
+  const overlay = page.getByTestId('quest-complete-overlay')
+  await expect(overlay).toBeVisible({ timeout: 5000 })
+  await overlay.click()
+  await expect(overlay).not.toBeVisible({ timeout: 2000 })
+})
+
+// 20c. 完了オーバーレイ: 次の通知が来ると内容が差し替わる
+test('完了オーバーレイ: 次の通知で内容が差し替わる (20c)', async ({ page }) => {
+  await loginAs(page, 'demo-editor-token')
+  await page.request.post('http://localhost:3001/api/test/notify-quest-complete', {
+    data: { token: 'demo-editor-token', questId: 1, questTitle: '最初の通知', playerName: 'Editor' },
+  })
+  await expect(page.getByText('最初の通知')).toBeVisible({ timeout: 5000 })
+
+  // 次の通知
+  await page.request.post('http://localhost:3001/api/test/notify-quest-complete', {
+    data: { token: 'demo-editor-token', questId: 2, questTitle: '次の通知', playerName: 'Editor' },
+  })
+  await expect(page.getByText('次の通知')).toBeVisible({ timeout: 5000 })
+  await expect(page.getByText('最初の通知')).not.toBeVisible()
+})
+
+// 20d. 完了オーバーレイ: 一定時間で自動的に消える
+test('完了オーバーレイ: 自動的に消える (20d)', async ({ page }) => {
+  await loginAs(page, 'demo-editor-token')
+  await page.request.post('http://localhost:3001/api/test/notify-quest-complete', {
+    data: { token: 'demo-editor-token', questId: 1, questTitle: '自動で消える', playerName: 'Editor' },
+  })
+  const overlay = page.getByTestId('quest-complete-overlay')
+  await expect(overlay).toBeVisible({ timeout: 5000 })
+  // AUTO_DISMISS_MS(3.5s) 経過で消える
+  await expect(overlay).not.toBeVisible({ timeout: 6000 })
+})
+
+// 20e. 完了オーバーレイ: 消えた後に編集/プレイモードを切り替えても再表示されない
+test('完了オーバーレイ: モード切替で再表示・再演出しない (20e)', async ({ page }) => {
+  await loginAs(page, 'demo-editor-token')
+  await page.request.post('http://localhost:3001/api/test/notify-quest-complete', {
+    data: { token: 'demo-editor-token', questId: 1, questTitle: 'モード切替テスト', playerName: 'Editor' },
+  })
+  const overlay = page.getByTestId('quest-complete-overlay')
+  await expect(overlay).toBeVisible({ timeout: 5000 })
+  await overlay.click()
+  await expect(overlay).not.toBeVisible({ timeout: 2000 })
+
+  // 編集 ⇄ プレイ を数回切り替えてもオーバーレイは復活しない
+  for (let i = 0; i < 3; i++) {
+    await page.getByTitle('プレイモード').click()
+    await page.getByTitle('編集モード').click()
+  }
+  await expect(overlay).not.toBeVisible()
 })
 
 // 21. タスク保存永続化: advancement 条件を追加して保存→リロード後も保持される
