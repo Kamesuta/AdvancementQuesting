@@ -52,12 +52,14 @@ public class ProposalRoutes {
                     map.put("myVote", myVote);
                     if (quest != null) {
                         map.put("mapPosition", quest.mapPosition);
-                        map.put("questSnapshot", Map.of(
-                            "title", quest.title != null ? quest.title : "",
-                            "description", quest.description != null ? quest.description : "",
-                            "icon", quest.icon != null ? quest.icon : "",
-                            "prerequisites", quest.prerequisites != null ? quest.prerequisites : List.of()
-                        ));
+                        Map<String, Object> snapshot = new HashMap<>();
+                        snapshot.put("title", quest.title != null ? quest.title : "");
+                        snapshot.put("description", quest.description != null ? quest.description : "");
+                        snapshot.put("icon", quest.icon != null ? quest.icon : "");
+                        snapshot.put("prerequisites", quest.prerequisites != null ? quest.prerequisites : List.of());
+                        snapshot.put("conditions", quest.conditions != null ? quest.conditions : List.of());
+                        snapshot.put("rewards", quest.rewards != null ? quest.rewards : List.of());
+                        map.put("questSnapshot", snapshot);
                     }
                     result.add(map);
                 }
@@ -90,12 +92,14 @@ public class ProposalRoutes {
                 resp.put("createdAt", proposal.createdAt());
                 resp.put("myVote", null);
                 resp.put("mapPosition", created.mapPosition);
-                resp.put("questSnapshot", Map.of(
-                    "title", created.title != null ? created.title : "",
-                    "description", created.description != null ? created.description : "",
-                    "icon", created.icon != null ? created.icon : "",
-                    "prerequisites", created.prerequisites != null ? created.prerequisites : List.of()
-                ));
+                Map<String, Object> snapshot = new HashMap<>();
+                snapshot.put("title", created.title != null ? created.title : "");
+                snapshot.put("description", created.description != null ? created.description : "");
+                snapshot.put("icon", created.icon != null ? created.icon : "");
+                snapshot.put("prerequisites", created.prerequisites != null ? created.prerequisites : List.of());
+                snapshot.put("conditions", created.conditions != null ? created.conditions : List.of());
+                snapshot.put("rewards", created.rewards != null ? created.rewards : List.of());
+                resp.put("questSnapshot", snapshot);
                 ctx.status(201).json(resp);
             } catch (IOException | SQLException e) {
                 throw new RuntimeException(e);

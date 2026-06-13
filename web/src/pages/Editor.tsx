@@ -910,21 +910,37 @@ export default function EditorPage() {
 
   const otherProposalNodes: ProposalNode[] = (existingProposals ?? [])
     .filter((p: any) => p.status === 'pending')
-    .map((p: any) => ({
-      id: `existing-proposal-${p.id}`,
+    .map((p: any) => {
+      const snap = p.questSnapshot ?? {}
+      const sid = `existing-proposal-${p.id}`
+      const tasks = (snap.conditions ?? []).map((c: any, i: number) => ({
+        id: `${sid}-t${i}`,
+        type: c.type,
+        value: c.type === 'advancement' ? (c.advancementId ?? '') : (c.label ?? c.value ?? ''),
+        ...(c.type === 'item' ? { itemType: c.itemType ?? 'stone', count: c.count ?? 1 } : {}),
+      }))
+      const rewards = (snap.rewards ?? []).map((r: any, i: number) => {
+        const base = { id: `${sid}-r${i}`, value: '' }
+        if (r.type === 'item') return { ...base, type: 'item', itemType: r.itemId, count: r.count ?? 1 }
+        if (r.type === 'experience') return { ...base, type: 'xp', value: String(r.amount) }
+        return { ...base, type: r.type }
+      })
+      return ({
+      id: sid,
       x: p.mapPosition?.x ?? 100,
       y: p.mapPosition?.y ?? 100,
-      icon: p.questSnapshot?.icon ?? 'stone',
-      title: p.questSnapshot?.title ?? '提案',
-      subtitle: p.questSnapshot?.subtitle ?? '',
-      description: p.questSnapshot?.description ?? '',
-      tasks: p.questSnapshot?.tasks ?? [],
-      rewards: p.questSnapshot?.rewards ?? [],
+      icon: snap.icon ?? 'stone',
+      title: snap.title ?? '提案',
+      subtitle: '',
+      description: snap.description ?? '',
+      tasks,
+      rewards,
       proposalId: p.id,
       proposerName: p.proposerName ?? '',
       votesUp: p.votesUp ?? 0,
       myVote: p.myVote ?? null,
-    }))
+    })
+  })
 
   // ---------------------------------------------------------------------------
   // 編集中ノード
