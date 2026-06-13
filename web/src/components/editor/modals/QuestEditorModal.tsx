@@ -241,6 +241,10 @@ export function QuestEditorModal({
               <X size={24} />
             </button>
           </div>
+          {/* 提案者表示 */}
+          {node.creatorName && (
+            <div className="text-xs text-gray-400">✨ {node.creatorName} が提案</div>
+          )}
           {/* 報酬受取ボタン / いいね・承認/却下ボタン */}
           {(claimReward || proposalMeta) && (
             <div className="flex items-center gap-2 flex-wrap">
@@ -387,6 +391,10 @@ export function QuestEditorModal({
               <X size={28} />
             </button>
           </div>
+          {/* 提案者表示 */}
+          {node.creatorName && (
+            <div className="text-xs text-gray-400">✨ {node.creatorName} が提案</div>
+          )}
           {/* 2行目: 報酬受取ボタン / いいね・承認/却下ボタン */}
           {(claimReward || proposalMeta) && (
             <div className="flex items-center gap-2 flex-wrap">

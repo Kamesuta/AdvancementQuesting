@@ -22,6 +22,7 @@ public class Quest {
     public List<Map<String, Object>> customButtons;
     public String status;
     public String creatorUuid;
+    public String creatorName;
     public String createdAt;
     public String updatedAt;
 

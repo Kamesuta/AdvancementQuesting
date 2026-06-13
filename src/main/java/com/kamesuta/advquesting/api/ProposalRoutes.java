@@ -155,9 +155,10 @@ public class ProposalRoutes {
                 if (proposal == null) throw new NotFoundResponse();
                 boolean ok = proposalDao.approve(id);
                 if (!ok) throw new BadRequestResponse("Already processed");
-                // クエストを public に変更
+                // クエストを public に変更し提案者名を保存
                 Quest patch = new Quest();
                 patch.status = "public";
+                patch.creatorName = proposal.proposerName();
                 questManager.update(proposal.questId(), patch);
                 ctx.json(Map.of("status", "approved"));
             } catch (IOException | SQLException e) {

@@ -47,6 +47,7 @@ export interface EditorNode {
   description: string
   tasks: EditorTask[]
   rewards: EditorReward[]
+  creatorName?: string | null
 }
 
 /** クエスト間の依存エッジ */

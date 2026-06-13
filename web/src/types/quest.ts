@@ -88,11 +88,12 @@ export interface Quest {
   customButtons: CustomButton[]
   status: QuestStatus
   creatorUuid: string | null
+  creatorName: string | null
   createdAt: string
   updatedAt: string
 }
 
-export type QuestCreateInput = Omit<Quest, 'id' | 'createdAt' | 'updatedAt' | 'creatorUuid'> & {
+export type QuestCreateInput = Omit<Quest, 'id' | 'createdAt' | 'updatedAt' | 'creatorUuid' | 'creatorName'> & {
   prerequisites: number[]
   creatorUuid?: string | null
 }

@@ -35,6 +35,7 @@ function questToNode(q: Quest): EditorNode {
     title: q.title,
     subtitle: (q as any).subtitle ?? '',
     description: q.description ?? '',
+    creatorName: q.creatorName ?? null,
     tasks: (q.conditions ?? []).map((c, i) => ({
       id: `${sid}-t${i}`,
       type: c.type,
