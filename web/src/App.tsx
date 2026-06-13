@@ -58,7 +58,7 @@ function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, su
         </span>
 
         {/* editor: モード切り替えトグル (アイコンのみ、スマホ対応) */}
-        {me && isEditor && (
+        {me && isEditor && !proposalMode && (
           <div className="flex items-center ml-1 border-2 shrink-0" style={{ borderTopColor: '#3B3B3B', borderLeftColor: '#3B3B3B', borderBottomColor: '#C6C6C6', borderRightColor: '#C6C6C6' }}>
             <button
               onClick={() => setViewMode('edit')}
@@ -87,8 +87,8 @@ function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, su
           </div>
         )}
 
-        {/* player: 提案モードバー */}
-        {me && !isEditor && (
+        {/* player または editor: 提案モードバー */}
+        {me && (
           <div className="flex-1 flex items-center justify-end gap-2 px-2 min-w-0">
             {proposalMode ? (
               <>

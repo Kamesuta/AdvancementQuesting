@@ -243,7 +243,7 @@ export function QuestEditorModal({
           </div>
           {/* 提案者表示 */}
           {node.creatorName && (
-            <div className="text-xs text-gray-400">✨ {node.creatorName} が提案</div>
+            <div className="text-xs text-gray-400">✨ {node.creatorName} 作成</div>
           )}
           {/* 報酬受取ボタン / いいね・承認/却下ボタン */}
           {(claimReward || proposalMeta) && (
@@ -393,7 +393,7 @@ export function QuestEditorModal({
           </div>
           {/* 提案者表示 */}
           {node.creatorName && (
-            <div className="text-xs text-gray-400">✨ {node.creatorName} が提案</div>
+            <div className="text-xs text-gray-400">✨ {node.creatorName} 作成</div>
           )}
           {/* 2行目: 報酬受取ボタン / いいね・承認/却下ボタン */}
           {(claimReward || proposalMeta) && (

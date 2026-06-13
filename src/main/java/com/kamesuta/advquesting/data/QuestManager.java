@@ -102,6 +102,9 @@ public class QuestManager {
             if (patch.mapPosition != null)  existing.mapPosition = patch.mapPosition;
             if (patch.customButtons != null) existing.customButtons = patch.customButtons;
             if (patch.status != null)       existing.status = patch.status;
+            if (patch.subtitle != null)     existing.subtitle = patch.subtitle;
+            if (patch.creatorName != null)  existing.creatorName = patch.creatorName;
+            if (patch.creatorUuid != null)  existing.creatorUuid = patch.creatorUuid;
             existing.updatedAt = Instant.now().toString();
             // タイトルが変わるとファイル名も変わる → 旧ファイル削除
             f.delete();

@@ -328,9 +328,9 @@ export default function EditorPage() {
   }, [])
 
   const isReadOnlyNode = useCallback((nodeId: string): boolean => {
+    if (proposalMode) return !isProposalDraft(nodeId)  // 提案モード中はドラフトのみ編集可
     if (isEditor) return false
-    if (proposalMode && isProposalDraft(nodeId)) return false
-    return true  // 未ログイン・プレイヤー通常・提案モードの既存ノード
+    return true  // 未ログイン・プレイヤー通常
   }, [isEditor, proposalMode, isProposalDraft])
 
   // ---- モード変更 ----
@@ -366,14 +366,14 @@ export default function EditorPage() {
   // ---------------------------------------------------------------------------
 
   const canMoveNode = useCallback((nodeId: string): boolean => {
+    if (proposalMode) return isProposalDraft(nodeId)  // 提案モード中はドラフトのみ移動可
     if (isEditor) return true
-    if (proposalMode) return isProposalDraft(nodeId)
     return false
   }, [isEditor, proposalMode, isProposalDraft])
 
   const canDeleteNode = useCallback((nodeId: string): boolean => {
+    if (proposalMode) return isProposalDraft(nodeId)  // 提案モード中はドラフトのみ削除可
     if (isEditor) return true
-    if (proposalMode) return isProposalDraft(nodeId)
     return false
   }, [isEditor, proposalMode, isProposalDraft])
 
