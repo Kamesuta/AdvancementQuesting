@@ -21,8 +21,7 @@ const FALLBACK_COLORS: Record<string, string> = {
   sword:     '#8b5a2b',
 }
 
-/** PNG テクスチャで描画し、失敗時はブロックテクスチャ → カラー四角にフォールバック */
-export const ItemIcon: FC<ItemIconProps> = ({ type, size = 32 }) => {
+function ItemIconInner({ type, size = 32 }: ItemIconProps) {
   const [itemFailed, setItemFailed] = useState(false)
   const [blockFailed, setBlockFailed] = useState(false)
 
@@ -61,3 +60,8 @@ export const ItemIcon: FC<ItemIconProps> = ({ type, size = 32 }) => {
     </svg>
   )
 }
+
+/** type が変わるたびに内部 state をリセットするため key={type} でラップ */
+export const ItemIcon: FC<ItemIconProps> = ({ type, size = 32 }) => (
+  <ItemIconInner key={type} type={type} size={size} />
+)
