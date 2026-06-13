@@ -252,8 +252,7 @@ public class ProgressManager {
                 try {
                     org.bukkit.inventory.ItemStack itemStack = null;
                     if (nbtJson != null) {
-                        itemStack = PlayerRoutes.deserializeItem(nbtJson);
-                        if (itemStack != null) itemStack.setAmount(count);
+                        itemStack = PlayerRoutes.deserializeItem(nbtJson, itemType, count);
                     }
                     if (itemStack == null) {
                         String matName = itemType.contains(":")

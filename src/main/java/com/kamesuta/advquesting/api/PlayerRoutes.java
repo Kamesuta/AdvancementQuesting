@@ -49,9 +49,12 @@ public class PlayerRoutes {
                     result.put("itemId", item.getType().getKey().toString());
                     result.put("count", item.getAmount());
 
-                    // アイテム全体をJSON文字列として保存 (エンチャント・属性・カスタム名など全て含む)
+                    // componentsのみ保存 (id/countは別フィールドで管理するため冗長性を排除)
                     JsonObject json = Bukkit.getUnsafe().serializeItemAsJson(item);
-                    result.put("nbt", json.toString());
+                    JsonObject components = json.has("components") ? json.getAsJsonObject("components") : null;
+                    if (components != null && !components.isEmpty()) {
+                        result.put("nbt", components.toString());
+                    }
 
                     // 表示名 (カスタム名 or バニラ名) をプレーンテキストで返す
                     String displayName = PlainTextComponentSerializer.plainText()
@@ -74,13 +77,19 @@ public class PlayerRoutes {
     }
 
     /**
-     * JSON文字列からItemStackを復元する。
-     * ProgressManager から報酬付与時に呼ばれる。
+     * components JSON文字列からItemStackを復元する。
+     * nbtJson は {"minecraft:enchantments":...} 形式のcomponentsのみ。
+     * itemType と count を使ってフルJSONを再構築してから deserialize する。
      */
-    public static ItemStack deserializeItem(String nbtJson) {
+    public static ItemStack deserializeItem(String nbtJson, String itemType, int count) {
         try {
-            JsonObject json = com.google.gson.JsonParser.parseString(nbtJson).getAsJsonObject();
-            return Bukkit.getUnsafe().deserializeItemFromJson(json);
+            JsonObject components = com.google.gson.JsonParser.parseString(nbtJson).getAsJsonObject();
+            JsonObject full = new JsonObject();
+            full.addProperty("id", itemType);
+            full.addProperty("count", count);
+            full.add("components", components);
+            full.addProperty("DataVersion", Bukkit.getUnsafe().getDataVersion());
+            return Bukkit.getUnsafe().deserializeItemFromJson(full);
         } catch (Exception e) {
             return null;
         }
