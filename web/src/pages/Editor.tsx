@@ -218,8 +218,13 @@ export default function EditorPage() {
   const [proposalNodes, setProposalNodes] = useState<EditorNode[]>([])
   const [proposalEdges, setProposalEdges] = useState<EditorEdge[]>([])
 
-  // proposalNodes が変わるたびに App 側のカウントを同期
-  useEffect(() => { setProposalCount(proposalNodes.length) }, [proposalNodes.length, setProposalCount])
+  // ---- 既存提案のローカル編集状態 (proposalId -> 編集済みノード) ----
+  const [myProposalEdits, setMyProposalEdits] = useState<Map<number, EditorNode>>(new Map())
+
+  // 合計件数を App 側に同期
+  useEffect(() => {
+    setProposalCount(proposalNodes.length + myProposalEdits.size)
+  }, [proposalNodes.length, myProposalEdits.size, setProposalCount])
 
   // 他者の pending 提案を取得
   const { data: existingProposals } = useQuery({
@@ -357,6 +362,7 @@ export default function EditorPage() {
     if (!proposalMode) {
       setProposalNodes([])
       setProposalEdges([])
+      setMyProposalEdits(new Map())
     }
     changeMode('select')
   }, [proposalMode, changeMode])
@@ -445,9 +451,10 @@ export default function EditorPage() {
   const { setSubmitProposals } = useEditor()
 
   const submitProposals = useCallback(async () => {
-    if (proposalNodes.length === 0) return
+    if (proposalNodes.length === 0 && myProposalEdits.size === 0) return
     setSubmitting(true)
     try {
+      // 新規ドラフトを送信
       for (const node of proposalNodes) {
         await proposalsApi.create({
           ...nodeToApiBody(node, proposalEdges),
@@ -456,10 +463,15 @@ export default function EditorPage() {
           customButtons: [],
         } as any)
       }
+      // 既存提案の編集を更新
+      for (const [proposalId, node] of myProposalEdits) {
+        const p = existingProposals?.find((p: any) => p.id === proposalId) as any
+        if (p) await questsApi.update(p.questId, nodeToApiBody(node, proposalEdges))
+      }
       queryClient.invalidateQueries({ queryKey: ['proposals'] })
-      // 提案モードは継続 — 送信済み提案をマップ上で確認できるようにする
       setProposalNodes([])
       setProposalEdges([])
+      setMyProposalEdits(new Map())
       showToast('提案を送信しました！')
     } catch {
       showToast('送信に失敗しました')
@@ -467,7 +479,7 @@ export default function EditorPage() {
       setSubmitting(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proposalNodes, proposalEdges, queryClient, setProposalMode, setSubmitting])
+  }, [proposalNodes, proposalEdges, myProposalEdits, existingProposals, queryClient, setSubmitting])
 
   // submitProposals が変わるたびに App 側へ登録
   // useState の setter は関数を渡すと updater として呼ぶため () => fn の形で包む
@@ -502,12 +514,8 @@ export default function EditorPage() {
     if (saving) return
     setSaving(true)
     try {
-      // APIに存在しないノードを新規作成、既存ノードを更新
-      // node.id は文字列 (questToNode で String(q.id) 変換済み)
-      // API の quest.id は number なので比較時に変換する
       const existingIds = new Set((questsData ?? []).map((q) => String(q.id)))
       const currentNodeIds = new Set(nodes.map((n) => n.id))
-      // APIにあるがエディタから消えたクエストを削除
       await Promise.all(
         (questsData ?? [])
           .filter((q) => !currentNodeIds.has(String(q.id)))
@@ -521,6 +529,15 @@ export default function EditorPage() {
           await questsApi.create({ ...body, category: null, customButtons: [] })
         }
       }))
+      // 既存提案の編集を保存
+      for (const [proposalId, node] of myProposalEdits) {
+        const p = existingProposals?.find((p: any) => p.id === proposalId) as any
+        if (p) await questsApi.update(p.questId, nodeToApiBody(node, edges))
+      }
+      if (myProposalEdits.size > 0) {
+        queryClient.invalidateQueries({ queryKey: ['proposals'] })
+        setMyProposalEdits(new Map())
+      }
       queryClient.invalidateQueries({ queryKey: ['quests'] })
       showToast('保存しました')
     } catch {
@@ -528,7 +545,7 @@ export default function EditorPage() {
     } finally {
       setSaving(false)
     }
-  }, [saving, nodes, edges, questsData, queryClient])
+  }, [saving, nodes, edges, questsData, myProposalEdits, existingProposals, queryClient])
 
   // handleSave が変わるたびに App 側へ登録
   useEffect(() => {
@@ -867,20 +884,40 @@ export default function EditorPage() {
   const handleItemSelect = (itemType: string) => {
     const config = itemSelectorConfig
     if (!config) return
-    const updater = (prev: EditorNode[]) => prev.map((n) => {
+    const apply = (n: EditorNode): EditorNode => {
       if (n.id !== config.nodeId) return n
       if (config.type === 'quest_icon') return { ...n, icon: itemType }
       if (config.type === 'task_item') return { ...n, icon: itemType, tasks: n.tasks.map((t) => t.id === config.taskId ? { ...t, itemType } : t) }
       return { ...n, rewards: n.rewards.map((r) => r.id === config.rewardId ? { ...r, itemType } : r) }
-    })
-    setProposalNodes(updater)
-    setNodes(updater)
+    }
+    setNodes((prev) => prev.map(apply))
+    setProposalNodes((prev) => prev.map(apply))
+    // 既存提案ノードの場合はローカル編集状態に反映
+    if (config.nodeId.startsWith('existing-proposal-')) {
+      const proposalId = parseInt(config.nodeId.replace('existing-proposal-', ''), 10)
+      setMyProposalEdits((prev) => {
+        const current = prev.get(proposalId) ?? otherProposalNodes.find((n) => n.id === config.nodeId)
+        if (!current) return prev
+        const next = new Map(prev)
+        next.set(proposalId, apply(current))
+        return next
+      })
+    }
     setItemSelectorConfig(null)
   }
 
   const updateNode = (updated: EditorNode) => {
     setNodes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)))
     setProposalNodes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)))
+    // 既存提案ノードの場合はローカル編集状態に反映
+    if (updated.id.startsWith('existing-proposal-')) {
+      const proposalId = parseInt(updated.id.replace('existing-proposal-', ''), 10)
+      setMyProposalEdits((prev) => {
+        const next = new Map(prev)
+        next.set(proposalId, updated)
+        return next
+      })
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -934,21 +971,26 @@ export default function EditorPage() {
         if (r.type === 'experience') return { ...base, type: 'xp', value: String(r.amount) }
         return { ...base, type: r.type }
       })
-      return ({
-      id: sid,
-      x: p.mapPosition?.x ?? 100,
-      y: p.mapPosition?.y ?? 100,
-      icon: snap.icon ?? 'stone',
-      title: snap.title ?? '提案',
-      subtitle: snap.subtitle ?? '',
-      description: snap.description ?? '',
-      tasks,
-      rewards,
-      proposalId: p.id,
-      proposerName: p.proposerName ?? '',
-      votesUp: p.votesUp ?? 0,
-      myVote: p.myVote ?? null,
-    })
+      const base: ProposalNode = {
+        id: sid,
+        x: p.mapPosition?.x ?? 100,
+        y: p.mapPosition?.y ?? 100,
+        icon: snap.icon ?? 'stone',
+        title: snap.title ?? '提案',
+        subtitle: snap.subtitle ?? '',
+        description: snap.description ?? '',
+        tasks,
+        rewards,
+        proposalId: p.id,
+        proposerName: p.proposerName ?? '',
+        votesUp: p.votesUp ?? 0,
+        myVote: p.myVote ?? null,
+      }
+      // ローカル編集中のデータを優先（アイテム変更などが即座に反映される）
+      const localEdit = myProposalEdits.get(p.id)
+      return localEdit
+        ? { ...base, ...localEdit, id: sid, proposalId: p.id, proposerName: base.proposerName, votesUp: base.votesUp, myVote: base.myVote }
+        : base
   })
 
   // ---------------------------------------------------------------------------
@@ -964,7 +1006,7 @@ export default function EditorPage() {
     : null
 
   const taskRewardNode = editingTaskReward
-    ? [...nodes, ...proposalNodes].find((n) => n.id === editingTaskReward.nodeId)
+    ? [...nodes, ...proposalNodes, ...otherProposalNodes].find((n) => n.id === editingTaskReward.nodeId)
     : null
 
   // ---------------------------------------------------------------------------
@@ -1208,33 +1250,34 @@ export default function EditorPage() {
           />
         )}
 
-        {editingProposalNode && (
-          <QuestEditorModal
-            node={editingProposalNode}
-            updateNode={() => {}}
-            close={() => setEditingProposalNodeId(null)}
-            openItemSelector={setItemSelectorConfig}
-            openTaskRewardEditor={setEditingTaskReward}
-            proposalMeta={editingProposalNode.proposalId != null ? (() => {
-              const p = existingProposals?.find((p: any) => p.id === editingProposalNode.proposalId) as any
-              return {
+        {editingProposalNode && (() => {
+          const p = existingProposals?.find((p: any) => p.id === editingProposalNode.proposalId) as any
+          const canEdit = isEditor || p?.proposerUuid === me?.playerUuid
+          return (
+            <QuestEditorModal
+              node={editingProposalNode}
+              updateNode={canEdit ? updateNode : () => {}}
+              close={() => setEditingProposalNodeId(null)}
+              openItemSelector={setItemSelectorConfig}
+              openTaskRewardEditor={setEditingTaskReward}
+              proposalMeta={editingProposalNode.proposalId != null ? {
                 proposalId: editingProposalNode.proposalId,
                 proposerName: p?.proposerName ?? '',
                 votesUp: editingProposalNode.votesUp ?? 0,
                 myVote: p?.myVote ?? null,
                 onVote: (type: 'up' | 'down') => handleVote(editingProposalNode.proposalId!, type),
-                ...((isEditor || p?.proposerUuid === me?.playerUuid) ? {
+                ...(canEdit ? {
                   onDelete: () => handleDeleteProposal(editingProposalNode.proposalId!),
                 } : {}),
                 ...(isEditor ? {
                   onApprove: () => handleApprove(editingProposalNode.proposalId!),
                   onReject: () => handleReject(editingProposalNode.proposalId!),
                 } : {}),
-              }
-            })() : undefined}
-            readOnly
-          />
-        )}
+              } : undefined}
+              readOnly={!canEdit}
+            />
+          )
+        })()}
 
         {editingTaskReward && taskRewardNode && (
           <TaskRewardEditorModal
