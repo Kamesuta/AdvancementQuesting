@@ -372,7 +372,7 @@ export default function EditorPage() {
   // ---------------------------------------------------------------------------
 
   const canMoveNode = useCallback((nodeId: string): boolean => {
-    if (proposalMode) return isProposalDraft(nodeId)  // 提案モード中はドラフトのみ移動可
+    if (proposalMode) return isProposalDraft(nodeId) || (isEditor && nodeId.startsWith('existing-proposal-'))
     if (isEditor) return true
     return false
   }, [isEditor, proposalMode, isProposalDraft])
@@ -600,6 +600,15 @@ export default function EditorPage() {
       if (proposalMode && isProposalDraft(draggingNode)) {
         setProposalNodes((prev) => prev.map((n) =>
           n.id === draggingNode ? { ...n, x: tx, y: ty } : n))
+      } else if (draggingNode.startsWith('existing-proposal-')) {
+        const proposalId = parseInt(draggingNode.replace('existing-proposal-', ''), 10)
+        setMyProposalEdits((prev) => {
+          const current = prev.get(proposalId) ?? otherProposalNodes.find((n) => n.id === draggingNode)
+          if (!current) return prev
+          const next = new Map(prev)
+          next.set(proposalId, { ...current, x: tx, y: ty })
+          return next
+        })
       } else if (isEditor) {
         setNodes((prev) => prev.map((n) =>
           n.id === draggingNode ? { ...n, x: tx, y: ty } : n))
@@ -693,6 +702,15 @@ export default function EditorPage() {
       if (proposalMode && isProposalDraft(draggingNode)) {
         setProposalNodes((prev) => prev.map((n) =>
           n.id === draggingNode ? { ...n, x: tx, y: ty } : n))
+      } else if (draggingNode.startsWith('existing-proposal-')) {
+        const proposalId = parseInt(draggingNode.replace('existing-proposal-', ''), 10)
+        setMyProposalEdits((prev) => {
+          const current = prev.get(proposalId) ?? otherProposalNodes.find((n) => n.id === draggingNode)
+          if (!current) return prev
+          const next = new Map(prev)
+          next.set(proposalId, { ...current, x: tx, y: ty })
+          return next
+        })
       } else if (isEditor) {
         setNodes((prev) => prev.map((n) =>
           n.id === draggingNode ? { ...n, x: tx, y: ty } : n))
@@ -809,6 +827,15 @@ export default function EditorPage() {
       if (proposalMode && isProposalDraft(nodeId)) {
         setProposalNodes((prev) => prev.map((n) =>
           n.id === nodeId ? { ...n, x: tx, y: ty } : n))
+      } else if (nodeId.startsWith('existing-proposal-')) {
+        const proposalId = parseInt(nodeId.replace('existing-proposal-', ''), 10)
+        setMyProposalEdits((prev) => {
+          const current = prev.get(proposalId) ?? otherProposalNodes.find((n) => n.id === nodeId)
+          if (!current) return prev
+          const next = new Map(prev)
+          next.set(proposalId, { ...current, x: tx, y: ty })
+          return next
+        })
       } else if (isEditor) {
         setNodes((prev) => prev.map((n) =>
           n.id === nodeId ? { ...n, x: tx, y: ty } : n))
