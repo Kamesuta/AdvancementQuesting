@@ -1,12 +1,13 @@
 package com.kamesuta.advquesting.api;
 
+import com.google.gson.JsonObject;
 import com.kamesuta.advquesting.db.SessionDao;
 import io.javalin.Javalin;
 import io.javalin.http.NotFoundResponse;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.Plugin;
 
 import java.util.HashMap;
@@ -45,23 +46,18 @@ public class PlayerRoutes {
                     }
 
                     Map<String, Object> result = new HashMap<>();
-                    // minecraft:diamond_sword 形式
-                    String itemId = item.getType().getKey().toString();
-                    result.put("itemId", itemId);
+                    result.put("itemId", item.getType().getKey().toString());
                     result.put("count", item.getAmount());
 
-                    ItemMeta meta = item.getItemMeta();
-                    if (meta != null) {
-                        // カスタム表示名
-                        if (meta.hasDisplayName()) {
-                            result.put("displayName", meta.getDisplayName());
-                        }
-                        // NBT (シリアライズ文字列)
-                        String nbt = item.getItemMeta().getAsString();
-                        if (nbt != null && !nbt.isEmpty() && !nbt.equals("{}")) {
-                            result.put("nbt", nbt);
-                        }
-                    }
+                    // アイテム全体をJSON文字列として保存 (エンチャント・属性・カスタム名など全て含む)
+                    JsonObject json = Bukkit.getUnsafe().serializeItemAsJson(item);
+                    result.put("nbt", json.toString());
+
+                    // 表示名 (カスタム名 or バニラ名) をプレーンテキストで返す
+                    String displayName = PlainTextComponentSerializer.plainText()
+                            .serialize(item.effectiveName());
+                    result.put("displayName", displayName);
+
                     future.complete(result);
                 } catch (Exception e) {
                     future.completeExceptionally(e);
@@ -75,5 +71,18 @@ public class PlayerRoutes {
                 throw new RuntimeException(e.getCause());
             }
         });
+    }
+
+    /**
+     * JSON文字列からItemStackを復元する。
+     * ProgressManager から報酬付与時に呼ばれる。
+     */
+    public static ItemStack deserializeItem(String nbtJson) {
+        try {
+            JsonObject json = com.google.gson.JsonParser.parseString(nbtJson).getAsJsonObject();
+            return Bukkit.getUnsafe().deserializeItemFromJson(json);
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

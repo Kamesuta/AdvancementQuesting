@@ -3,6 +3,7 @@ package com.kamesuta.advquesting.data;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kamesuta.advquesting.api.NotificationRoutes;
+import com.kamesuta.advquesting.api.PlayerRoutes;
 import com.kamesuta.advquesting.db.ProgressDao;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -247,31 +248,23 @@ public class ProgressManager {
             if ("item".equals(type)) {
                 String itemType = (String) reward.getOrDefault("itemType", reward.get("itemId"));
                 int count = ((Number) reward.getOrDefault("count", 1)).intValue();
-                String nbt = (String) reward.get("nbt");
+                String nbtJson = reward.get("nbt") instanceof String s ? s : null;
                 try {
                     org.bukkit.inventory.ItemStack itemStack = null;
-                    if (nbt != null && !nbt.isEmpty()) {
-                        // NBTからアイテムを復元
-                        try {
-                            itemStack = org.bukkit.Bukkit.getItemFactory().createItemStack(itemType + nbt);
-                            itemStack.setAmount(count);
-                        } catch (Exception e) {
-                            log.warning("Failed to parse NBT, falling back to plain item: " + e.getMessage());
-                        }
+                    if (nbtJson != null) {
+                        itemStack = PlayerRoutes.deserializeItem(nbtJson);
+                        if (itemStack != null) itemStack.setAmount(count);
                     }
                     if (itemStack == null) {
-                        org.bukkit.Material mat = org.bukkit.Material.matchMaterial(
-                            itemType.contains(":") ? itemType.substring(itemType.indexOf(':') + 1).toUpperCase() : itemType.toUpperCase()
-                        );
-                        if (mat != null) {
-                            itemStack = new org.bukkit.inventory.ItemStack(mat, count);
-                        }
+                        String matName = itemType.contains(":")
+                            ? itemType.substring(itemType.indexOf(':') + 1).toUpperCase()
+                            : itemType.toUpperCase();
+                        org.bukkit.Material mat = org.bukkit.Material.matchMaterial(matName);
+                        if (mat != null) itemStack = new org.bukkit.inventory.ItemStack(mat, count);
                     }
-                    if (itemStack != null) {
-                        player.getInventory().addItem(itemStack);
-                    }
+                    if (itemStack != null) player.getInventory().addItem(itemStack);
                 } catch (Exception e) {
-                    log.warning("Failed to give item reward: " + itemType);
+                    log.warning("Failed to give item reward: " + itemType + " - " + e.getMessage());
                 }
             } else if ("experience".equals(type)) {
                 int amount = ((Number) reward.getOrDefault("amount", 0)).intValue();

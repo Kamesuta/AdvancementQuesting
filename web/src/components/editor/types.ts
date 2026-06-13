@@ -26,7 +26,7 @@ export interface EditorTask {
   value: string       // 表示テキスト / コマンド文字列など
   itemType?: string   // type === 'item' の場合のアイテム種別
   count?: number
-  nbt?: string        // NBT文字列 (特殊アイテム用)
+  nbt?: string        // serializeItemAsJson JSON文字列 (特殊アイテム用)
   displayName?: string // カスタム表示名
 }
 
@@ -37,7 +37,7 @@ export interface EditorReward {
   value: string
   itemType?: string
   count?: number      // type === 'item' の場合の個数
-  nbt?: string        // NBT文字列 (特殊アイテム用)
+  nbt?: string        // serializeItemAsJson JSON文字列 (特殊アイテム用)
   displayName?: string // カスタム表示名
 }
 

@@ -159,7 +159,9 @@ export function TaskRewardEditorModal({
               <span className="text-sm text-white font-bold truncate">{currentItemName}</span>
               <span className="text-xs text-gray-400 truncate">{currentItemId}</span>
               {hasNbt && (
-                <span className="text-xs text-purple-400 truncate" title={itemWithExtra.nbt}>NBT付き ✦</span>
+                <span className="text-xs text-purple-400 truncate" title={itemWithExtra.nbt}>
+                  NBT付き ✦
+                </span>
               )}
               <div className="flex gap-3 mt-1">
                 <button
