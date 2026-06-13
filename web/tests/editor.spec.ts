@@ -756,3 +756,36 @@ test('達成演出: SSE完了通知でノードがキラキラ→達成済みに
   await expect(node1).toHaveAttribute('data-completed', 'true', { timeout: 8000 })
   await expect(node1).not.toHaveAttribute('data-celebrating', 'true', { timeout: 8000 })
 })
+
+// 25. progress_update 通知: 達成/未達成の切替が演出なしで即時反映される
+test('進捗更新通知: progress_updateで達成→未達成が演出なしで即反映される (25)', async ({ page }) => {
+  await page.request.post('http://localhost:3001/api/test/reset-progress')
+  await loginAs(page, 'demo-editor-token')
+
+  const node1 = page.locator('[data-node-id="1"]')
+  await expect(node1).not.toHaveAttribute('data-completed', 'true')
+
+  // サーバー側で完了 → progress_update (演出なし) 通知
+  await page.request.post('http://localhost:3001/api/test/set-progress', {
+    data: { playerUuid: EDITOR_UUID, questId: 1, completed: true },
+  })
+  await page.request.post('http://localhost:3001/api/test/notify-progress-update', {
+    data: { token: 'demo-editor-token', questId: 1, completed: true },
+  })
+
+  // 達成済み表示になる（キラキラ演出やオーバーレイは出ない）
+  await expect(node1).toHaveAttribute('data-completed', 'true', { timeout: 5000 })
+  await expect(node1).not.toHaveAttribute('data-celebrating', 'true')
+  await expect(page.getByTestId('quest-complete-overlay')).not.toBeVisible()
+
+  // サーバー側で未完了に戻す → progress_update 通知
+  await page.request.post('http://localhost:3001/api/test/set-progress', {
+    data: { playerUuid: EDITOR_UUID, questId: 1, completed: false },
+  })
+  await page.request.post('http://localhost:3001/api/test/notify-progress-update', {
+    data: { token: 'demo-editor-token', questId: 1, completed: false },
+  })
+
+  // 達成済み表示が消える
+  await expect(node1).not.toHaveAttribute('data-completed', 'true', { timeout: 5000 })
+})

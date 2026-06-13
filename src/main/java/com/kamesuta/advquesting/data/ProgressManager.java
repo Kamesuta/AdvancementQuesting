@@ -105,6 +105,27 @@ public class ProgressManager {
         return true;
     }
 
+    /**
+     * クエストの完了状態を管理コマンドで強制設定する。
+     * 完了にした場合は達成演出付きで通知、未完了に戻した場合は進捗の再取得のみ通知する。
+     * @return クエストが存在すれば true、存在しなければ false
+     */
+    public boolean setQuestCompleted(String playerUuid, int questId, boolean completed) throws SQLException {
+        Quest quest = questManager.findById(questId);
+        if (quest == null) return false;
+
+        progressDao.setCompleted(playerUuid, questId, completed);
+
+        if (completed) {
+            // 達成演出付きで通知（チャット・サウンド・パーティクル・SSE）
+            notifyQuestComplete(playerUuid, quest);
+        } else if (notificationRoutes != null) {
+            // 未完了に戻した: ブラウザに進捗再取得を促す（演出なし）
+            notificationRoutes.sendProgressUpdate(playerUuid, questId, false);
+        }
+        return true;
+    }
+
     // ---- private helpers ----
 
     private void markConditionComplete(String playerUuid, Quest quest, String condType, String condValue)

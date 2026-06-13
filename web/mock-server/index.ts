@@ -72,6 +72,19 @@ app.post('/api/test/notify-quest-complete', express.json(), (req, res) => {
   res.json({ sent: targets.length })
 })
 
+// テスト用: 指定トークン(playerUuid)へ progress_update イベントを送信 (演出なし)
+app.post('/api/test/notify-progress-update', express.json(), (req, res) => {
+  const { token, questId, completed } = req.body as {
+    token: string; questId: number; completed: boolean
+  }
+  const targets = sseClients.get(token) ?? []
+  const payload = JSON.stringify({ questId, completed: !!completed, playerUuid: token })
+  for (const client of [...targets]) {
+    client.write(`event: progress_update\ndata: ${payload}\n\n`)
+  }
+  res.json({ sent: targets.length })
+})
+
 // テスト用: デモセッションを復元する (本番では無効)
 app.post('/api/test/restore-sessions', async (_req, res) => {
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)

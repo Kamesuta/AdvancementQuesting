@@ -7,18 +7,31 @@ export interface QuestCompleteEvent {
   playerName: string
 }
 
+export interface ProgressUpdateEvent {
+  questId: number
+  completed: boolean
+  playerUuid: string
+}
+
+interface Handlers {
+  /** 達成通知（演出あり） */
+  onQuestComplete: (event: QuestCompleteEvent) => void
+  /** 進捗変化通知（演出なし・達成済み表示の即時更新用） */
+  onProgressUpdate?: (event: ProgressUpdateEvent) => void
+}
+
 /**
- * SSE でクエスト完了通知を購読する。
- * @param onQuestComplete 通知受信時のコールバック
+ * SSE でクエスト完了 / 進捗変化通知を購読する。
+ * @param handlers 各イベントのコールバック
  * @param authKey ログイン状態が変わると再接続するためのキー (例: playerUuid)。
  *                これが変わると EventSource を張り直す。
  */
 export function useQuestNotifications(
-  onQuestComplete: (event: QuestCompleteEvent) => void,
+  handlers: Handlers,
   authKey?: string | null,
 ) {
-  const onQuestCompleteRef = useRef(onQuestComplete)
-  onQuestCompleteRef.current = onQuestComplete
+  const handlersRef = useRef(handlers)
+  handlersRef.current = handlers
 
   useEffect(() => {
     const token = localStorage.getItem('token')
@@ -30,7 +43,16 @@ export function useQuestNotifications(
     es.addEventListener('quest_complete', (e: MessageEvent) => {
       try {
         const data = JSON.parse(e.data) as QuestCompleteEvent
-        onQuestCompleteRef.current(data)
+        handlersRef.current.onQuestComplete(data)
+      } catch {
+        // ignore parse errors
+      }
+    })
+
+    es.addEventListener('progress_update', (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data) as ProgressUpdateEvent
+        handlersRef.current.onProgressUpdate?.(data)
       } catch {
         // ignore parse errors
       }

@@ -192,6 +192,11 @@ function AppInner() {
     queryClient.invalidateQueries({ queryKey: ['progress'] })
   }, [queryClient])
 
+  // 進捗変化通知（管理コマンドでの達成/未達成切替など）— 演出なしで表示だけ更新
+  const handleProgressUpdate = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['progress'] })
+  }, [queryClient])
+
   // ログイン状態を監視 (ログイン後に SSE を張り直すため)
   const { data: meForSse } = useQuery({
     queryKey: ['me'],
@@ -199,7 +204,10 @@ function AppInner() {
     retry: false,
     enabled: !!localStorage.getItem('token'),
   })
-  useQuestNotifications(handleQuestComplete, meForSse?.playerUuid ?? null)
+  useQuestNotifications(
+    { onQuestComplete: handleQuestComplete, onProgressUpdate: handleProgressUpdate },
+    meForSse?.playerUuid ?? null,
+  )
 
   // URLに ?code=XXXXXX が含まれる場合は自動ログイン
   useEffect(() => {

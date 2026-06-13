@@ -72,21 +72,38 @@ public class NotificationRoutes {
         });
     }
 
-    /** playerUuid 宛に quest_complete イベントを送信する */
+    /** playerUuid 宛に quest_complete イベントを送信する（達成演出あり） */
     public void sendQuestComplete(String playerUuid, int questId, String questTitle,
                                   String playerName) {
+        send(playerUuid, "quest_complete", Map.of(
+            "questId", questId,
+            "questTitle", questTitle,
+            "playerUuid", playerUuid,
+            "playerName", playerName
+        ));
+    }
+
+    /**
+     * playerUuid 宛に progress_update イベントを送信する（演出なし・進捗の再取得のみ）。
+     * 管理コマンドで達成状態を変更したときなど、達成済み表示だけ即時更新したい場合に使う。
+     */
+    public void sendProgressUpdate(String playerUuid, int questId, boolean completed) {
+        send(playerUuid, "progress_update", Map.of(
+            "questId", questId,
+            "completed", completed,
+            "playerUuid", playerUuid
+        ));
+    }
+
+    /** 指定プレイヤーの全 SSE クライアントへイベントを送信する共通処理 */
+    private void send(String playerUuid, String event, Map<String, Object> payloadMap) {
         Set<SseClient> targets = clients.get(playerUuid);
         if (targets == null || targets.isEmpty()) return;
         try {
-            String payload = MAPPER.writeValueAsString(Map.of(
-                "questId", questId,
-                "questTitle", questTitle,
-                "playerUuid", playerUuid,
-                "playerName", playerName
-            ));
+            String payload = MAPPER.writeValueAsString(payloadMap);
             for (SseClient c : Set.copyOf(targets)) {
                 try {
-                    c.sendEvent("quest_complete", payload);
+                    c.sendEvent(event, payload);
                 } catch (Exception ignored) {
                     targets.remove(c);
                 }
