@@ -11,11 +11,13 @@ $Root = $PSScriptRoot
 Set-Location $Root
 
 # ---- Maven ビルド ----
+# clean を必ず付ける: target/classes/dist に古いフロントエンドアセットが
+# 残ると JAR に蓄積し、誤ったバンドルを配信する恐れがあるため
 Write-Host "-> Maven build..." -ForegroundColor Cyan
 
-$mvnArgs = @('package', '-DskipTests')
+$mvnArgs = @('clean', 'package', '-DskipTests')
 if (-not $SkipTests) {
-    $mvnArgs = @('package')
+    $mvnArgs = @('clean', 'package')
 }
 
 mvn @mvnArgs

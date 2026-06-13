@@ -14,6 +14,11 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, './src'),
       },
     },
+    build: {
+      // ビルドのたびに dist を空にして、古いハッシュ付きアセットが
+      // JAR に蓄積するのを防ぐ
+      emptyOutDir: true,
+    },
     server: {
       proxy: {
         '/api': {
