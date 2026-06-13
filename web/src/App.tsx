@@ -180,7 +180,7 @@ function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, su
 
 function AppInner() {
   const queryClient = useQueryClient()
-  const [viewMode, setViewMode] = useState<ViewMode>('edit')
+  const [viewMode, setViewMode] = useState<ViewMode>('play')
   // 完了オーバーレイ用イベント (nonce 付きで「新しい通知か」を判定する)
   const [questCompleteEvent, setQuestCompleteEvent] = useState<(QuestCompleteEvent & { nonce: number }) | null>(null)
   // マップ演出トリガー: 完了したクエストID + 毎回変わる nonce

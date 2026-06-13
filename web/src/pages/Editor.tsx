@@ -905,6 +905,13 @@ export default function EditorPage() {
     setEditingProposalNodeId(null)
   }
 
+  const handleDeleteProposal = async (proposalId: number) => {
+    if (!confirm('この提案を取り下げますか？')) return
+    await proposalsApi.delete(proposalId)
+    queryClient.invalidateQueries({ queryKey: ['proposals'] })
+    setEditingProposalNodeId(null)
+  }
+
   // ---------------------------------------------------------------------------
   // 他者の提案ノード
   // ---------------------------------------------------------------------------
@@ -1215,6 +1222,9 @@ export default function EditorPage() {
                 votesUp: editingProposalNode.votesUp ?? 0,
                 myVote: p?.myVote ?? null,
                 onVote: (type: 'up' | 'down') => handleVote(editingProposalNode.proposalId!, type),
+                ...((isEditor || p?.proposerUuid === me?.playerUuid) ? {
+                  onDelete: () => handleDeleteProposal(editingProposalNode.proposalId!),
+                } : {}),
                 ...(isEditor ? {
                   onApprove: () => handleApprove(editingProposalNode.proposalId!),
                   onReject: () => handleReject(editingProposalNode.proposalId!),

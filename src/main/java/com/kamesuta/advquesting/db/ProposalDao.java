@@ -66,6 +66,14 @@ public class ProposalDao {
         }
     }
 
+    public boolean delete(int id) throws SQLException {
+        String sql = "DELETE FROM quest_proposals WHERE id = ?";
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ps.setInt(1, id);
+            return ps.executeUpdate() > 0;
+        }
+    }
+
     public boolean approve(int id) throws SQLException {
         String sql = "UPDATE quest_proposals SET status = 'approved' WHERE id = ? AND status = 'pending'";
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {

@@ -13,6 +13,7 @@ interface ProposalMeta {
   votesUp: number
   myVote?: 'up' | 'down' | null
   onVote?: (type: 'up' | 'down') => void
+  onDelete?: () => void
   onApprove?: () => void
   onReject?: () => void
 }
@@ -138,7 +139,7 @@ export function QuestEditorModal({
             {!readOnly && (
               <button
                 onClick={(e) => { e.stopPropagation(); removeTask(task.id) }}
-                className="text-red-400 hover:text-red-300 p-1 sm:hidden group-hover:block"
+                className="text-red-400 hover:text-red-300 p-1 shrink-0"
                 title="削除"
               >
                 <Trash2 size={16} />
@@ -199,7 +200,7 @@ export function QuestEditorModal({
             {!readOnly && (
               <button
                 onClick={(e) => { e.stopPropagation(); removeReward(reward.id) }}
-                className="text-red-400 hover:text-red-300 p-1 sm:hidden group-hover:block"
+                className="text-red-400 hover:text-red-300 p-1 shrink-0"
                 title="削除"
               >
                 <Trash2 size={16} />
@@ -278,6 +279,15 @@ export function QuestEditorModal({
                 )}
                 {!proposalMeta.onVote && (
                   <span className="text-xs text-gray-400">👍 {proposalMeta.votesUp}</span>
+                )}
+                {proposalMeta.onDelete && (
+                  <button
+                    onClick={proposalMeta.onDelete}
+                    className="text-xs px-3 py-1.5 border font-bold"
+                    style={{ color: '#1f0a0a', backgroundColor: '#C67B7B', borderColor: '#7B3B3B' }}
+                  >
+                    🗑 取り下げ
+                  </button>
                 )}
                 {proposalMeta.onApprove && (
                   <button
@@ -415,6 +425,15 @@ export function QuestEditorModal({
                 )}
                 {!proposalMeta.onVote && (
                   <span className="text-xs text-gray-400">👍 {proposalMeta.votesUp}</span>
+                )}
+                {proposalMeta.onDelete && (
+                  <button
+                    onClick={proposalMeta.onDelete}
+                    className="text-xs px-3 py-1.5 border font-bold"
+                    style={{ color: '#1f0a0a', backgroundColor: '#C67B7B', borderColor: '#7B3B3B' }}
+                  >
+                    🗑 取り下げ
+                  </button>
                 )}
                 {proposalMeta.onApprove && (
                   <button

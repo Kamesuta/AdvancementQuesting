@@ -107,6 +107,28 @@ public class ProposalRoutes {
             }
         });
 
+        // DELETE /api/proposals/:id — 取り下げ (自分の提案 or editor)
+        app.delete("/api/proposals/{id}", ctx -> {
+            SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
+            int id = parseId(ctx.pathParam("id"));
+            try {
+                ProposalDao.ProposalRecord proposal = proposalDao.findById(id);
+                if (proposal == null) throw new NotFoundResponse();
+                if (!session.isEditor() && !session.playerUuid().equals(proposal.proposerUuid())) {
+                    throw new ForbiddenResponse();
+                }
+                proposalDao.delete(id);
+                // 関連クエスト (proposed状態) も削除
+                Quest quest = questManager.findById(proposal.questId());
+                if (quest != null && "proposed".equals(quest.status)) {
+                    questManager.delete(proposal.questId());
+                }
+                ctx.status(204);
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
         // POST /api/proposals/:id/vote — 投票
         app.post("/api/proposals/{id}/vote", ctx -> {
             SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);

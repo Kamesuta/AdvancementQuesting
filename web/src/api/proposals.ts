@@ -13,4 +13,6 @@ export const proposalsApi = {
 
   reject: (id: number, body: RejectRequest) =>
     api.post<{ status: string }>(`/proposals/${id}/reject`, body),
+
+  delete: (id: number) => api.delete<void>(`/proposals/${id}`),
 }
