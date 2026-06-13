@@ -51,6 +51,35 @@ function questToNode(q: Quest): EditorNode {
   }
 }
 
+function nodeToApiBody(node: EditorNode, edgeList: EditorEdge[]) {
+  const conditions: Condition[] = (node.tasks ?? []).map((t) => {
+    const ta = t as any
+    if (t.type === 'advancement') return { id: t.id, type: 'advancement' as const, advancementId: ta.advancementId ?? t.value ?? '' }
+    if (t.type === 'item') return { id: t.id, type: 'item' as const, itemType: ta.itemType ?? 'stone', count: ta.count ?? 1 }
+    if (t.type === 'checkmark') return { id: t.id, type: 'checkmark' as const, label: ta.label ?? t.value ?? '' }
+    if (t.type === 'stat') return { id: t.id, type: 'stat' as const, value: ta.statId ?? t.value ?? '' }
+    return { id: t.id, type: 'checkmark' as const, label: t.value }
+  })
+  const rewards: Reward[] = (node.rewards ?? []).map((r) => {
+    if (r.type === 'item') return { type: 'item' as const, itemId: r.itemType ?? 'stone', count: r.count ?? 1 }
+    if (r.type === 'xp') return { type: 'experience' as const, amount: parseInt(r.value || '0', 10), isLevel: false }
+    if (r.type === 'command') return { type: 'command' as const, command: r.value, opLevel: 0 }
+    return { type: 'command' as const, command: '', opLevel: 0 }
+  })
+  return {
+    title: node.title,
+    description: node.description,
+    icon: node.icon,
+    mapPosition: { x: node.x, y: node.y },
+    prerequisites: edgeList
+      .filter((e) => e.target === node.id)
+      .map((e) => parseInt(e.source, 10))
+      .filter((n) => !isNaN(n)),
+    conditions,
+    rewards,
+  }
+}
+
 function questsToEdges(quests: Quest[]): EditorEdge[] {
   const edges: EditorEdge[] = []
   for (const q of quests) {
@@ -419,13 +448,10 @@ export default function EditorPage() {
     try {
       for (const node of proposalNodes) {
         await proposalsApi.create({
-          title: node.title,
-          description: node.description,
-          icon: node.icon,
-          prerequisites: proposalEdges
-            .filter((e) => e.target === node.id)
-            .map((e) => e.source),
-          mapPosition: { x: node.x, y: node.y },
+          ...nodeToApiBody(node, proposalEdges),
+          status: 'proposed',
+          category: null,
+          customButtons: [],
         } as any)
       }
       queryClient.invalidateQueries({ queryKey: ['proposals'] })
@@ -486,36 +512,7 @@ export default function EditorPage() {
           .map((q) => questsApi.delete(q.id))
       )
       await Promise.all(nodes.map(async (node) => {
-        // EditorTask → API conditions
-        const conditions: Condition[] = (node.tasks ?? []).map((t) => {
-          const ta = t as any
-          if (t.type === 'advancement') return { id: t.id, type: 'advancement' as const, advancementId: ta.advancementId ?? t.value ?? '' }
-          if (t.type === 'item') return { id: t.id, type: 'item' as const, itemType: ta.itemType ?? 'stone', count: ta.count ?? 1 }
-          if (t.type === 'checkmark') return { id: t.id, type: 'checkmark' as const, label: ta.label ?? t.value ?? '' }
-          if (t.type === 'stat') return { id: t.id, type: 'stat' as const, value: ta.statId ?? t.value ?? '' }
-          return { id: t.id, type: 'checkmark' as const, label: t.value }
-        })
-        // EditorReward → API rewards
-        const rewards: Reward[] = (node.rewards ?? []).map((r) => {
-          if (r.type === 'item') return { type: 'item' as const, itemId: r.itemType ?? 'stone', count: r.count ?? 1 }
-          if (r.type === 'xp') return { type: 'experience' as const, amount: parseInt(r.value || '0', 10), isLevel: false }
-          if (r.type === 'command') return { type: 'command' as const, command: r.value, opLevel: 0 }
-          return { type: 'command' as const, command: '', opLevel: 0 }
-        })
-        const body = {
-          title: node.title,
-          description: node.description,
-          icon: node.icon,
-          mapPosition: { x: node.x, y: node.y },
-          // エッジの source/target は文字列 → API送信時は number 配列に戻す
-          prerequisites: edges
-            .filter((e) => e.target === node.id)
-            .map((e) => parseInt(e.source, 10))
-            .filter((n) => !isNaN(n)),
-          conditions,
-          rewards,
-          status: 'public' as const,
-        }
+        const body = { ...nodeToApiBody(node, edges), status: 'public' as const }
         if (existingIds.has(node.id)) {
           await questsApi.update(parseInt(node.id, 10), body)
         } else {
