@@ -71,13 +71,20 @@ public class ProgressManager {
      * itemType が一致する item 条件の count を消費分だけ加算する。
      */
     public void onItemPickup(String playerUuid, String itemType, int amount) {
+        // Bukkit は "minecraft:oak_log" 形式で返すが、UIは "oak_log" 形式で保存する場合がある
+        // 両方にマッチするよう名前空間なし版も用意する
+        String itemTypeNoNs = itemType.contains(":") ? itemType.substring(itemType.indexOf(':') + 1) : itemType;
         try {
             for (Quest quest : questManager.loadAll()) {
                 if (!"public".equals(quest.status)) continue;
                 if (quest.conditions == null) continue;
-                boolean hasMatch = quest.conditions.stream().anyMatch(c ->
-                    "item".equals(c.get("type")) && itemType.equals(c.get("itemType"))
-                );
+                boolean hasMatch = quest.conditions.stream().anyMatch(c -> {
+                    if (!"item".equals(c.get("type"))) return false;
+                    String condItemType = (String) c.get("itemType");
+                    if (condItemType == null) return false;
+                    String condNoNs = condItemType.contains(":") ? condItemType.substring(condItemType.indexOf(':') + 1) : condItemType;
+                    return itemTypeNoNs.equals(condNoNs);
+                });
                 if (hasMatch) {
                     updateItemProgress(playerUuid, quest, itemType, amount);
                 }
@@ -191,10 +198,14 @@ public class ProgressManager {
             ? new ArrayList<>()
             : MAPPER.readValue(record.progress(), LIST_MAP_TYPE);
 
+        String itemTypeNoNs = itemType.contains(":") ? itemType.substring(itemType.indexOf(':') + 1) : itemType;
         boolean changed = false;
         for (Map<String, Object> cond : quest.conditions) {
             if (!"item".equals(cond.get("type"))) continue;
-            if (!itemType.equals(cond.get("itemType"))) continue;
+            String condItemType = (String) cond.get("itemType");
+            if (condItemType == null) continue;
+            String condNoNs = condItemType.contains(":") ? condItemType.substring(condItemType.indexOf(':') + 1) : condItemType;
+            if (!itemTypeNoNs.equals(condNoNs)) continue;
             String condId = (String) cond.get("id");
             int required = ((Number) cond.getOrDefault("count", 1)).intValue();
 
