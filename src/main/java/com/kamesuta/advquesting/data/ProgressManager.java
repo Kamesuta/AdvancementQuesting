@@ -300,11 +300,7 @@ public class ProgressManager {
                         if (mat != null) itemStack = new org.bukkit.inventory.ItemStack(mat, count);
                     }
                     if (itemStack != null) {
-                        java.util.Map<Integer, org.bukkit.inventory.ItemStack> leftover =
-                            player.getInventory().addItem(itemStack);
-                        for (org.bukkit.inventory.ItemStack drop : leftover.values()) {
-                            player.getWorld().dropItem(player.getLocation(), drop);
-                        }
+                        player.getWorld().dropItem(player.getLocation(), itemStack);
                     }
                 } catch (Exception e) {
                     log.warning("Failed to give item reward: " + itemType + " - " + e.getMessage());
