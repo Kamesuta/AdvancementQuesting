@@ -1,13 +1,14 @@
 export interface ConditionProgress {
-  conditionIndex: number
-  currentCount: number
+  conditionId: string
+  current?: number
+  required?: number
   completed: boolean
 }
 
 export interface PlayerProgress {
   id: number
   playerUuid: string
-  questId: string
+  questId: number
   progress: ConditionProgress[]
   completed: boolean
   rewardClaimed: boolean

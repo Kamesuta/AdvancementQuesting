@@ -6,6 +6,7 @@ import { ItemIcon } from '../ItemIcon.js'
 import { getDisplayText } from '../utils.js'
 import { useIsMobile } from '@/hooks/useIsMobile.js'
 import { useMcLang } from '@/hooks/useMcData.js'
+import type { ConditionProgress } from '@/types/progress.js'
 
 interface ProposalMeta {
   proposalId: number
@@ -26,6 +27,8 @@ interface QuestEditorModalProps {
   openTaskRewardEditor: (config: EditingTaskReward) => void
   proposalMeta?: ProposalMeta
   readOnly?: boolean
+  /** 各条件の達成進捗 (ログイン中のみ) */
+  conditionProgress?: ConditionProgress[]
   /** クエスト完了済みで未受取の場合に渡す。呼び出すと報酬受取APIを実行する */
   claimReward?: () => Promise<void>
 }
@@ -43,6 +46,7 @@ export function QuestEditorModal({
   openTaskRewardEditor,
   proposalMeta,
   readOnly = false,
+  conditionProgress,
   claimReward,
 }: QuestEditorModalProps) {
   const [showTaskMenu, setShowTaskMenu] = useState(false)
@@ -118,35 +122,63 @@ export function QuestEditorModal({
         </div>
       </div>
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {node.tasks?.map((task) => (
-          <div
-            key={task.id}
-            className={`flex items-center gap-3 p-2 bg-black/30 rounded-sm border border-transparent transition-colors ${readOnly ? '' : 'hover:bg-white/5 active:bg-white/10 hover:border-gray-500 cursor-pointer'}`}
-            onClick={readOnly ? undefined : () => openTaskRewardEditor({ nodeId: node.id, category: 'task', itemId: task.id })}
-          >
-            <div className="shrink-0">
-              {task.type === 'item' ? (
-                <ItemIcon type={task.itemType ?? 'stone'} size={24} />
-              ) : (
-                <span className="text-xl w-6 text-center block">
-                  {TASK_TYPES.find((t) => t.id === task.type)?.icon}
-                </span>
+        {node.tasks?.map((task) => {
+          const cp = conditionProgress?.find((p) => p.conditionId === task.id)
+          const isDone = cp?.completed ?? false
+          const hasCount = cp != null && cp.current != null && cp.required != null
+          return (
+            <div
+              key={task.id}
+              className={`flex items-center gap-3 p-2 bg-black/30 rounded-sm border transition-colors ${isDone ? 'border-yellow-600/50 bg-yellow-900/10' : 'border-transparent'} ${readOnly ? '' : 'hover:bg-white/5 active:bg-white/10 hover:border-gray-500 cursor-pointer'}`}
+              onClick={readOnly ? undefined : () => openTaskRewardEditor({ nodeId: node.id, category: 'task', itemId: task.id })}
+            >
+              <div className="shrink-0">
+                {task.type === 'item' ? (
+                  <ItemIcon type={task.itemType ?? 'stone'} size={24} />
+                ) : (
+                  <span className="text-xl w-6 text-center block">
+                    {TASK_TYPES.find((t) => t.id === task.type)?.icon}
+                  </span>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className={`text-sm truncate font-semibold ${isDone ? 'text-yellow-300' : 'text-gray-200'}`}>
+                  {getDisplayText(task, 'task', lang)}
+                </div>
+                {hasCount && !isDone && (
+                  <div className="mt-1 flex items-center gap-2">
+                    <div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-green-500 rounded-full transition-all"
+                        style={{ width: `${Math.min(100, ((cp!.current! / cp!.required!) * 100))}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-gray-400 shrink-0">{cp!.current}/{cp!.required}</span>
+                  </div>
+                )}
+              </div>
+              {/* 達成チェックマーク */}
+              {isDone && (
+                <div
+                  className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center"
+                  style={{ backgroundColor: '#FFD700', fontSize: '13px', color: '#5a4000' }}
+                  title="達成済み"
+                >
+                  ✓
+                </div>
+              )}
+              {!readOnly && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); removeTask(task.id) }}
+                  className="text-red-400 hover:text-red-300 p-1 shrink-0"
+                  title="削除"
+                >
+                  <Trash2 size={16} />
+                </button>
               )}
             </div>
-            <div className="flex-1 text-sm text-gray-200 truncate font-semibold">
-              {getDisplayText(task, 'task', lang)}
-            </div>
-            {!readOnly && (
-              <button
-                onClick={(e) => { e.stopPropagation(); removeTask(task.id) }}
-                className="text-red-400 hover:text-red-300 p-1 shrink-0"
-                title="削除"
-              >
-                <Trash2 size={16} />
-              </button>
-            )}
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

@@ -1283,6 +1283,7 @@ export default function EditorPage() {
             openItemSelector={setItemSelectorConfig}
             openTaskRewardEditor={setEditingTaskReward}
             readOnly={isReadOnlyNode(editingNodeId!)}
+            conditionProgress={progressData?.find((pr) => String(pr.questId) === editingNodeId)?.progress}
             claimReward={(() => {
               const p = progressData?.find((pr) => String(pr.questId) === editingNodeId)
               if (!p?.completed || p.rewardClaimed) return undefined

@@ -188,6 +188,8 @@ public class ProgressManager {
 
         if (allDone) {
             notifyQuestComplete(playerUuid, quest);
+        } else if (notificationRoutes != null) {
+            notificationRoutes.sendProgressUpdate(playerUuid, quest.id, false);
         }
     }
 
@@ -231,6 +233,8 @@ public class ProgressManager {
 
         if (allDone) {
             notifyQuestComplete(playerUuid, quest);
+        } else if (notificationRoutes != null) {
+            notificationRoutes.sendProgressUpdate(playerUuid, quest.id, false);
         }
     }
 
