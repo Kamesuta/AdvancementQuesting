@@ -84,14 +84,14 @@ describe('Minecraft⇔ブラウザ 統合: リンゴ拾得でブラウザ演出'
     // apple×1 条件の public クエストがあるか確認。なければ作成 (editor権限が要る)
     const { body: quests } = await apiRequest('GET', '/api/quests?status=public')
     let appleQuest = Array.isArray(quests)
-      ? quests.find(q => (q.conditions ?? []).some(c => c.type === 'item' && c.itemType === 'apple'))
+      ? quests.find(q => (q.conditions ?? []).some(c => c.type === 'item' && c.itemType === 'minecraft:apple'))
       : null
     if (!appleQuest) {
       const { status: cs, body: created } = await apiRequest('POST', '/api/quests', {
         token,
         body: {
           title: '統合テスト_リンゴ', status: 'public', icon: 'apple', prerequisites: [],
-          conditions: [{ id: 'itg-apple', type: 'item', itemType: 'apple', count: 1 }],
+          conditions: [{ id: 'itg-apple', type: 'item', itemType: 'minecraft:apple', count: 1 }],
           rewards: [], mapPosition: { x: 700, y: 700 }, category: null, customButtons: [],
         },
       })
@@ -101,7 +101,7 @@ describe('Minecraft⇔ブラウザ 統合: リンゴ拾得でブラウザ演出'
     console.log(`apple クエスト: id=${appleQuest.id} title=${appleQuest.title}`)
 
     // ブラウザを起動して Web UI にトークンを注入してログイン
-    browser = await chromium.launch()
+    browser = await chromium.launch({ headless: false, slowMo: 200 })
     page = await browser.newPage()
     page.on('pageerror', e => console.log('  [browser pageerror]', e.message))
     await page.goto(API_BASE + '/', { waitUntil: 'domcontentloaded' })
@@ -113,6 +113,8 @@ describe('Minecraft⇔ブラウザ 統合: リンゴ拾得でブラウザ演出'
   })
 
   after(async () => {
+    // 目視確認のため5秒待つ
+    await new Promise(r => setTimeout(r, 5000))
     if (page) await page.close().catch(() => {})
     if (browser) await browser.close().catch(() => {})
     if (bot) await quitBot(bot)
