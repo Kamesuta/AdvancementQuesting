@@ -28,7 +28,7 @@ const RUN_DIR    = path.join(__dirname, 'run')
 const PLUGINS_DIR = path.join(RUN_DIR, 'plugins')
 
 // Paper バージョン設定
-const PAPER_MC_VERSION = '1.21.1'
+const PAPER_MC_VERSION = '1.21.11'
 const PAPER_BUILD = 'latest'  // 'latest' または具体的なビルド番号
 
 const MC_PORT  = process.env.MC_PORT  ?? '25599'
