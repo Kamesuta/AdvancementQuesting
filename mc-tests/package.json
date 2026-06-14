@@ -4,7 +4,9 @@
   "description": "Mineflayer E2E tests for AdvancementQuesting plugin",
   "type": "module",
   "scripts": {
-    "test": "node --test tests/*.test.js"
+    "test": "node setup.js",
+    "test:no-build": "node setup.js --no-build",
+    "test:direct": "node --test tests/*.test.js"
   },
   "dependencies": {
     "mineflayer": "^4.23.0"

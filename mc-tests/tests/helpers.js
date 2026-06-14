@@ -1,8 +1,8 @@
 import mineflayer from 'mineflayer'
 
 const MC_HOST = process.env.MC_HOST ?? 'localhost'
-const MC_PORT = parseInt(process.env.MC_PORT ?? '25565', 10)
-const API_BASE = process.env.API_BASE ?? 'http://localhost:8080'
+const MC_PORT = parseInt(process.env.MC_PORT ?? '25599', 10)
+const API_BASE = process.env.API_BASE ?? 'http://localhost:8090'
 
 /** Mineflayer ボットを作成してスポーンするまで待つ */
 export function createBot(username) {

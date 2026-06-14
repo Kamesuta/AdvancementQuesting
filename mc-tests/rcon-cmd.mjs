@@ -1,7 +1,9 @@
 // 簡易 RCON クライアント: 引数のコマンドを実行して結果を出力する
 import net from 'node:net'
 
-const HOST = 'localhost', PORT = 25575, PASS = 'kame'
+const HOST = process.env.MC_HOST ?? 'localhost'
+const PORT = parseInt(process.env.RCON_PORT ?? '25598', 10)
+const PASS = process.env.RCON_PASS ?? 'testpass'
 const command = process.argv.slice(2).join(' ')
 if (!command) { console.error('usage: node rcon-cmd.mjs <command>'); process.exit(1) }
 

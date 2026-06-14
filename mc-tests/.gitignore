@@ -142,3 +142,6 @@ dist
 .svelte-kit
 
 # End of https://www.toptal.com/developers/gitignore/api/node
+
+# Minecraft test server 実行ディレクトリ (setup.js が run-template/ からコピーして生成)
+run/

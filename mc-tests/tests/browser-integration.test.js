@@ -21,8 +21,8 @@ import { createBot, quitBot, waitForChat, apiRequest, API_BASE } from './helpers
 // 「未達成の新規プレイヤー」を作り、リンゴ拾得で必ず新規完了イベントを発火させる
 const BOT_NAME = 'ItgBot' + Math.floor(Math.random() * 100000)
 const RCON_HOST = process.env.MC_HOST ?? 'localhost'
-const RCON_PORT = parseInt(process.env.RCON_PORT ?? '25575', 10)
-const RCON_PASS = process.env.RCON_PASS ?? 'kame'
+const RCON_PORT = parseInt(process.env.RCON_PORT ?? '25598', 10)
+const RCON_PASS = process.env.RCON_PASS ?? 'testpass'
 
 /** RCON でコンソールコマンドを実行する (OP権限相当) */
 function rcon(cmd) {
