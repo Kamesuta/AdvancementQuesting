@@ -7,21 +7,19 @@
 import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { createBot, quitBot, waitForChat, apiRequest } from './helpers.js'
+import type { Bot } from 'mineflayer'
 
 describe('/quest コマンド & 認証 API', () => {
-  let bot
+  let bot: Bot
 
   before(async () => {
     bot = await createBot('TestPlayer')
-    // スポーン直後は少し待ってチャットを安定させる
     await new Promise(r => setTimeout(r, 1000))
   })
 
   after(async () => {
     if (bot) await quitBot(bot)
   })
-
-  // -----------------------------------------------------------------------
 
   it('/quest でコード付きログインURLがチャットに表示される', async () => {
     const chatPromise = waitForChat(bot, text => text.includes('http'), 5000)
@@ -40,14 +38,14 @@ describe('/quest コマンド & 認証 API', () => {
   })
 
   it('/quest code → POST /api/auth/code → セッション取得できる', async () => {
-    // チャットからコードを取得
     const chatPromise = waitForChat(bot, text => /\d{6}/.test(text), 5000)
     bot.chat('/quest code')
     const msg = await chatPromise
-    const code = msg.match(/(\d{6})/)[1]
+    const code = msg.match(/(\d{6})/)![1]
 
-    // コードで認証
-    const { status, body } = await apiRequest('POST', '/api/auth/code', { body: { code } })
+    const { status, body } = await apiRequest<{ token: string; playerUuid: string; playerName: string; role: string }>(
+      'POST', '/api/auth/code', { body: { code } },
+    )
     assert.equal(status, 200, `status: ${status}, body: ${JSON.stringify(body)}`)
     assert.ok(body.token, 'tokenが返っていない')
     assert.ok(body.playerUuid, 'playerUuidが返っていない')
@@ -56,17 +54,17 @@ describe('/quest コマンド & 認証 API', () => {
   })
 
   it('取得したトークンで GET /api/auth/me が返る', async () => {
-    // 新たにコードを取得
     const chatPromise = waitForChat(bot, text => /\d{6}/.test(text), 5000)
     bot.chat('/quest code')
     const msg = await chatPromise
-    const code = msg.match(/(\d{6})/)[1]
+    const code = msg.match(/(\d{6})/)![1]
 
-    const { body: authBody } = await apiRequest('POST', '/api/auth/code', { body: { code } })
+    const { body: authBody } = await apiRequest<{ token: string }>('POST', '/api/auth/code', { body: { code } })
     const token = authBody.token
 
-    // /me で確認
-    const { status, body } = await apiRequest('GET', '/api/auth/me', { token })
+    const { status, body } = await apiRequest<{ playerName: string; playerUuid: string }>(
+      'GET', '/api/auth/me', { token },
+    )
     assert.equal(status, 200)
     assert.equal(body.playerName, 'TestPlayer')
     assert.ok(body.playerUuid)
@@ -76,16 +74,14 @@ describe('/quest コマンド & 認証 API', () => {
     const chatPromise = waitForChat(bot, text => /\d{6}/.test(text), 5000)
     bot.chat('/quest code')
     const msg = await chatPromise
-    const code = msg.match(/(\d{6})/)[1]
+    const code = msg.match(/(\d{6})/)![1]
 
-    const { body: authBody } = await apiRequest('POST', '/api/auth/code', { body: { code } })
+    const { body: authBody } = await apiRequest<{ token: string }>('POST', '/api/auth/code', { body: { code } })
     const token = authBody.token
 
-    // ログアウト
     const { status: logoutStatus } = await apiRequest('DELETE', '/api/auth/logout', { token })
     assert.equal(logoutStatus, 204)
 
-    // 以降は 401
     const { status: meStatus } = await apiRequest('GET', '/api/auth/me', { token })
     assert.equal(meStatus, 401)
   })
@@ -99,7 +95,7 @@ describe('/quest コマンド & 認証 API', () => {
     const chatPromise = waitForChat(bot, text => /\d{6}/.test(text), 5000)
     bot.chat('/quest code')
     const msg = await chatPromise
-    const code = msg.match(/(\d{6})/)[1]
+    const code = msg.match(/(\d{6})/)![1]
 
     const { status: s1 } = await apiRequest('POST', '/api/auth/code', { body: { code } })
     assert.equal(s1, 200)
@@ -111,13 +107,13 @@ describe('/quest コマンド & 認証 API', () => {
 
 describe('GET /api/quests', () => {
   it('認証なしでクエスト一覧が取得できる', async () => {
-    const { status, body } = await apiRequest('GET', '/api/quests')
+    const { status, body } = await apiRequest<unknown[]>('GET', '/api/quests')
     assert.equal(status, 200)
     assert.ok(Array.isArray(body), 'レスポンスが配列ではない')
   })
 
   it('status=public フィルタが動く', async () => {
-    const { status, body } = await apiRequest('GET', '/api/quests?status=public')
+    const { status, body } = await apiRequest<Array<{ id: number; status: string }>>('GET', '/api/quests?status=public')
     assert.equal(status, 200)
     assert.ok(Array.isArray(body))
     for (const q of body) {

@@ -178,7 +178,7 @@ function runTests() {
     console.log('\n[setup] テストを実行中...\n')
     const proc = spawn(
       'node',
-      ['--test', 'tests/*.test.js'],
+      ['--import', 'tsx/esm', '--test', 'tests/*.test.ts'],
       {
         cwd: __dirname,
         stdio: 'inherit',
