@@ -407,16 +407,18 @@ export function TaskRewardEditorModal({
       <div className="flex flex-col gap-4 flex-1 overflow-y-auto min-h-0">
         {taskSpecificField}
 
-        <div className="flex flex-col gap-2">
-          <label className="text-xs text-gray-400 uppercase tracking-wider">表示名 (省略可)</label>
-          <input
-            type="text"
-            value={item.value}
-            onChange={(e) => handleChange({ value: e.target.value })}
-            className="bg-black/40 border border-gray-600 p-2 text-sm text-white outline-none focus:border-blue-500"
-            placeholder="表示テキスト..."
-          />
-        </div>
+        {item.type !== 'point' && (
+          <div className="flex flex-col gap-2">
+            <label className="text-xs text-gray-400 uppercase tracking-wider">表示名 (省略可)</label>
+            <input
+              type="text"
+              value={item.value}
+              onChange={(e) => handleChange({ value: e.target.value })}
+              className="bg-black/40 border border-gray-600 p-2 text-sm text-white outline-none focus:border-blue-500"
+              placeholder="表示テキスト..."
+            />
+          </div>
+        )}
       </div>
 
       <div className="mt-4 flex justify-end shrink-0 pt-3 border-t border-gray-700">
