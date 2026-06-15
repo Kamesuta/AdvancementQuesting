@@ -17,6 +17,7 @@ import com.kamesuta.advquesting.db.ProposalDao;
 import com.kamesuta.advquesting.db.SessionDao;
 import com.kamesuta.advquesting.listener.AdvancementListener;
 import com.kamesuta.advquesting.listener.ItemProgressListener;
+import com.kamesuta.advquesting.listener.StatProgressListener;
 import io.javalin.Javalin;
 import io.javalin.http.staticfiles.Location;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -90,6 +91,7 @@ public final class AdvancementQuesting extends JavaPlugin {
         // イベントリスナー登録
         getServer().getPluginManager().registerEvents(new AdvancementListener(progressManager), this);
         getServer().getPluginManager().registerEvents(new ItemProgressListener(progressManager), this);
+        getServer().getPluginManager().registerEvents(new StatProgressListener(progressManager), this);
 
         // コマンド登録
         QuestCommand questCommand = new QuestCommand(authCodeDao, webUrl, progressDao, progressManager, questManager);

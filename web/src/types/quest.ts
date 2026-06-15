@@ -28,7 +28,12 @@ export interface CheckmarkCondition {
 export interface StatCondition {
   id?: string
   type: 'stat'
-  value?: string
+  // 統計カテゴリ: "minecraft:mined" / "minecraft:crafted" / ... / "minecraft:custom"
+  statType: string
+  // 対象ID: アイテムベースなら "minecraft:diamond"、カスタムなら "minecraft:jump" 等
+  statId: string
+  // 目標値 (この値以上で達成)
+  count: number
 }
 
 export type Condition = AdvancementCondition | ItemCondition | CheckmarkCondition | StatCondition

@@ -39,8 +39,10 @@ function questToNode(q: Quest): EditorNode {
     tasks: (q.conditions ?? []).map((c, i) => ({
       id: c.id ?? `${sid}-t${i}`,
       type: c.type,
-      value: c.type === 'advancement' ? (c.advancementId ?? '') : ((c as any).label ?? (c as any).value ?? ''),
+      value: (c as any).label ?? (c as any).value ?? '',
+      ...(c.type === 'advancement' ? { advancementId: c.advancementId ?? '' } : {}),
       ...(c.type === 'item' ? { itemType: c.itemType ?? 'stone', count: c.count ?? 1, ...(c.nbt ? { nbt: c.nbt } : {}), ...(c.displayName ? { displayName: c.displayName } : {}) } : {}),
+      ...(c.type === 'stat' ? { statType: (c as any).statType ?? '', statId: (c as any).statId ?? '', count: (c as any).count ?? 1 } : {}),
     })),
     rewards: (q.rewards ?? []).map((r, i) => {
       const base = { id: `${sid}-r${i}`, value: '' }
@@ -59,7 +61,7 @@ function nodeToApiBody(node: EditorNode, edgeList: EditorEdge[]) {
     if (t.type === 'advancement') return { id: t.id, type: 'advancement' as const, advancementId: ta.advancementId ?? t.value ?? '' }
     if (t.type === 'item') return { id: t.id, type: 'item' as const, itemType: ta.itemType ?? 'stone', count: ta.count ?? 1, ...(ta.nbt ? { nbt: ta.nbt } : {}), ...(ta.displayName ? { displayName: ta.displayName } : {}) }
     if (t.type === 'checkmark') return { id: t.id, type: 'checkmark' as const, label: ta.label ?? t.value ?? '' }
-    if (t.type === 'stat') return { id: t.id, type: 'stat' as const, value: ta.statId ?? t.value ?? '' }
+    if (t.type === 'stat') return { id: t.id, type: 'stat' as const, statType: ta.statType ?? '', statId: ta.statId ?? '', count: ta.count ?? 1 }
     return { id: t.id, type: 'checkmark' as const, label: t.value }
   })
   const rewards: Reward[] = (node.rewards ?? []).map((r) => {

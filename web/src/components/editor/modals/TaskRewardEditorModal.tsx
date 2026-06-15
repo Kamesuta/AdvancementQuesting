@@ -1,11 +1,27 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { X } from 'lucide-react'
 import type { EditorNode, EditorTask, EditorReward, ItemSelectorConfig } from '../types.js'
 import { TASK_TYPES, REWARD_TYPES } from '../constants.js'
 import { ItemIcon } from '../ItemIcon.js'
 import { useIsMobile } from '@/hooks/useIsMobile.js'
-import { useMcItems, getItemName } from '@/hooks/useMcData.js'
+import { useMcItems, getItemName, useMcAdvancements, getCustomStatName } from '@/hooks/useMcData.js'
 import { playerApi } from '@/api/player.js'
+import { AdvancementSelectorModal } from './AdvancementSelectorModal.js'
+import { StatSelectorModal } from './StatSelectorModal.js'
+import type { StatSelection } from './StatSelectorModal.js'
+
+/** 統計カテゴリのラベル */
+const STAT_CATEGORY_LABELS: Record<string, string> = {
+  'minecraft:mined':     '採掘',
+  'minecraft:crafted':   'クラフト',
+  'minecraft:used':      '使用',
+  'minecraft:broken':    '破壊',
+  'minecraft:picked_up': '拾得',
+  'minecraft:dropped':   '破棄',
+  'minecraft:killed':    '討伐',
+  'minecraft:killed_by': '被討伐',
+  'minecraft:custom':    'カスタム',
+}
 
 interface TaskRewardEditorModalProps {
   node: EditorNode
@@ -15,50 +31,6 @@ interface TaskRewardEditorModalProps {
   updateNode: (node: EditorNode) => void
   openItemSelector: (config: ItemSelectorConfig) => void
 }
-
-// アドバンスメントをモックデータから返す (開発用)
-// 本番ではMCサーバーAPIから取得
-function useAdvancements() {
-  // mcmeta の data ブランチからは fetch が必要だが、現状はモックデータを使用
-  // 実際のアドバンスメントIDは `minecraft:story/mine_wood` 形式
-  const MOCK_ADVANCEMENTS = [
-    { id: 'minecraft:story/root', name: 'Minecraft' },
-    { id: 'minecraft:story/mine_wood', name: '木の切り出し' },
-    { id: 'minecraft:story/get_wood', name: '木のツール' },
-    { id: 'minecraft:story/mine_stone', name: '石の採掘' },
-    { id: 'minecraft:story/upgrade_tools', name: 'ストーンエイジ' },
-    { id: 'minecraft:story/smelt_iron', name: '鉄の製錬' },
-    { id: 'minecraft:story/obtain_armor', name: '武装完了' },
-    { id: 'minecraft:story/lava_bucket', name: '溶岩バケツ' },
-    { id: 'minecraft:story/iron_tools', name: '鉄のツール' },
-    { id: 'minecraft:story/deflect_arrow', name: '矢を弾く' },
-    { id: 'minecraft:story/form_obsidian', name: '黒曜石の採掘' },
-    { id: 'minecraft:story/mine_diamond', name: 'ダイヤモンドの採掘' },
-    { id: 'minecraft:story/enter_the_nether', name: 'ネザーに踏み込む' },
-    { id: 'minecraft:story/shiny_gear', name: 'ダイヤの鎧' },
-    { id: 'minecraft:story/enchant_item', name: 'エンチャント！' },
-    { id: 'minecraft:story/cure_zombie_villager', name: 'ゾンビの村人を治す' },
-    { id: 'minecraft:story/follow_ender_eye', name: 'アイ・スパイ' },
-    { id: 'minecraft:story/enter_the_end', name: 'エンドに踏み込む' },
-    { id: 'minecraft:nether/root', name: 'ネザー' },
-    { id: 'minecraft:end/root', name: 'エンド' },
-    { id: 'minecraft:adventure/root', name: '冒険' },
-    { id: 'minecraft:husbandry/root', name: '農業' },
-  ]
-  return MOCK_ADVANCEMENTS
-}
-
-const STAT_TYPES = [
-  { id: 'minecraft:mined', name: '採掘' },
-  { id: 'minecraft:crafted', name: 'クラフト' },
-  { id: 'minecraft:used', name: '使用' },
-  { id: 'minecraft:broken', name: '破壊' },
-  { id: 'minecraft:picked_up', name: '拾得' },
-  { id: 'minecraft:dropped', name: '破棄' },
-  { id: 'minecraft:killed', name: '討伐' },
-  { id: 'minecraft:killed_by', name: '被討伐' },
-  { id: 'minecraft:custom', name: 'カスタム' },
-]
 
 export function TaskRewardEditorModal({
   node,
@@ -72,10 +44,12 @@ export function TaskRewardEditorModal({
   const items = category === 'task' ? node.tasks : node.rewards
   const item = items.find((i) => i.id === itemId)
   const { lang } = useMcItems()
-  const advancements = useAdvancements()
-  const [advSearch, setAdvSearch] = useState('')
+  const { advancements } = useMcAdvancements()
   const [fetchingHeld, setFetchingHeld] = useState(false)
   const [heldError, setHeldError] = useState<string | null>(null)
+  // サブモーダル表示フラグ
+  const [showAdvSelector, setShowAdvSelector] = useState(false)
+  const [showStatSelector, setShowStatSelector] = useState(false)
 
   if (!item) return null
 
@@ -125,18 +99,39 @@ export function TaskRewardEditorModal({
     }
   }
 
+  const handleAdvancementSelect = (advId: string) => {
+    handleChange({ advancementId: advId } as any)
+    setShowAdvSelector(false)
+  }
+
+  const handleStatSelect = (sel: StatSelection) => {
+    handleChange({ statType: sel.statType, statId: sel.statId } as any)
+    setShowStatSelector(false)
+  }
+
   const currentItemId = (item as EditorTask).itemType ?? 'stone'
   const currentItemName = getItemName(lang, currentItemId)
 
-  const filteredAdv = useMemo(() => {
-    const q = advSearch.toLowerCase()
-    if (!q) return advancements
-    return advancements.filter(
-      (a) => a.id.toLowerCase().includes(q) || a.name.toLowerCase().includes(q),
-    )
-  }, [advancements, advSearch])
+  // アドバンスメント表示名の解決 (langがロード済みなら日本語名、なければID)
+  const currentAdvId = (item as EditorTask).advancementId ?? ''
+  const currentAdvName = advancements?.find((a) => a.id === currentAdvId)?.name ?? currentAdvId
+
+  // 統計表示名の解決
+  const currentStatType = (item as EditorTask).statType ?? ''
+  const currentStatId = (item as EditorTask).statId ?? ''
+  const statCategoryLabel = STAT_CATEGORY_LABELS[currentStatType] ?? currentStatType
+  const statIdLabel = (() => {
+    if (!currentStatId) return ''
+    if (currentStatType === 'minecraft:custom') {
+      return getCustomStatName(lang ? { ja: lang.ja, en: lang.en } : undefined, currentStatId)
+    }
+    // アイテムベース: minecraft:diamond → diamond のアイテム名を解決
+    const idPart = currentStatId.includes(':') ? currentStatId.split(':')[1] : currentStatId
+    return getItemName(lang, idPart)
+  })()
 
   const taskSpecificField = (() => {
+    // ----- アイテム -----
     if (item.type === 'item') {
       const itemWithExtra = item as EditorTask & EditorReward
       const hasNbt = !!itemWithExtra.nbt
@@ -209,38 +204,37 @@ export function TaskRewardEditorModal({
       )
     }
 
+    // ----- 進捗 (Advancement) -----
     if (item.type === 'advancement') {
-      const currentAdv = (item as any).advancementId ?? ''
       return (
         <div className="flex flex-col gap-2">
           <label className="text-xs text-blue-300 font-bold uppercase tracking-wider">進捗 (Advancement)</label>
-          <input
-            type="text"
-            value={advSearch}
-            onChange={(e) => setAdvSearch(e.target.value)}
-            placeholder="検索..."
-            className="bg-black/40 border border-gray-600 p-2 text-sm text-white outline-none focus:border-blue-500"
-          />
-          {currentAdv && (
-            <div className="text-xs text-green-400 px-1">選択中: {currentAdv}</div>
-          )}
-          <div className="bg-black/30 border border-gray-700 overflow-y-auto max-h-40">
-            {filteredAdv.map((adv) => (
-              <div
-                key={adv.id}
-                onClick={() => handleChange({ advancementId: adv.id } as any)}
-                className={`px-3 py-2 cursor-pointer text-sm hover:bg-blue-600/30 ${currentAdv === adv.id ? 'bg-blue-600/50 text-blue-200' : 'text-gray-300'}`}
-              >
-                <div className="font-medium">{adv.name}</div>
-                <div className="text-xs text-gray-500">{adv.id}</div>
-              </div>
-            ))}
+
+          {/* 選択中の進捗を表示 */}
+          <div
+            className="flex items-center gap-3 bg-black/20 p-3 border border-gray-700 cursor-pointer hover:border-blue-500"
+            onClick={() => setShowAdvSelector(true)}
+          >
+            <span className="text-2xl shrink-0">🏆</span>
+            <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+              {currentAdvId ? (
+                <>
+                  <span className="text-sm font-bold text-white truncate">{currentAdvName}</span>
+                  <span className="text-xs text-gray-400 truncate">{currentAdvId}</span>
+                </>
+              ) : (
+                <span className="text-sm text-gray-400">クリックして選択...</span>
+              )}
+            </div>
+            <span className="text-xs text-blue-400 shrink-0">変更</span>
           </div>
-          <div className="flex flex-col gap-1 mt-1">
+
+          {/* カスタムID直接入力 */}
+          <div className="flex flex-col gap-1">
             <label className="text-xs text-gray-400">カスタムID (直接入力)</label>
             <input
               type="text"
-              value={currentAdv}
+              value={currentAdvId}
               onChange={(e) => handleChange({ advancementId: e.target.value } as any)}
               placeholder="minecraft:story/mine_wood"
               className="bg-black/40 border border-gray-600 p-2 text-sm text-white outline-none focus:border-blue-500"
@@ -250,50 +244,51 @@ export function TaskRewardEditorModal({
       )
     }
 
+    // ----- 統計 -----
     if (item.type === 'stat') {
-      const currentStat = (item as EditorTask & { statType?: string; statId?: string }).statType ?? ''
-      const currentStatId = (item as EditorTask & { statType?: string; statId?: string }).statId ?? ''
       return (
         <div className="flex flex-col gap-2">
-          <label className="text-xs text-blue-300 font-bold uppercase tracking-wider">統計タイプ</label>
-          <div className="bg-black/30 border border-gray-700 overflow-y-auto max-h-32">
-            {STAT_TYPES.map((s) => (
-              <div
-                key={s.id}
-                onClick={() => handleChange({ statType: s.id } as any)}
-                className={`px-3 py-2 cursor-pointer text-sm hover:bg-blue-600/30 ${currentStat === s.id ? 'bg-blue-600/50 text-blue-200' : 'text-gray-300'}`}
-              >
-                <span className="font-medium">{s.name}</span>
-                <span className="text-xs text-gray-500 ml-2">{s.id}</span>
-              </div>
-            ))}
-          </div>
-          {currentStat && currentStat !== 'minecraft:custom' && (
-            <div className="flex flex-col gap-1 mt-1">
-              <label className="text-xs text-gray-400">対象ID (例: diamond)</label>
-              <input
-                type="text"
-                value={currentStatId}
-                onChange={(e) => handleChange({ statId: e.target.value } as any)}
-                placeholder="diamond"
-                className="bg-black/40 border border-gray-600 p-2 text-sm text-white outline-none focus:border-blue-500"
-              />
+          <label className="text-xs text-blue-300 font-bold uppercase tracking-wider">統計</label>
+
+          {/* 選択中の統計を表示 */}
+          <div
+            className="flex items-center gap-3 bg-black/20 p-3 border border-gray-700 cursor-pointer hover:border-blue-500"
+            onClick={() => setShowStatSelector(true)}
+          >
+            <span className="text-2xl shrink-0">📊</span>
+            <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+              {currentStatType ? (
+                <>
+                  <span className="text-sm font-bold text-white truncate">
+                    {statCategoryLabel}: {statIdLabel || currentStatId}
+                  </span>
+                  <span className="text-xs text-gray-400 truncate">
+                    {currentStatType} / {currentStatId}
+                  </span>
+                </>
+              ) : (
+                <span className="text-sm text-gray-400">クリックして選択...</span>
+              )}
             </div>
-          )}
+            <span className="text-xs text-blue-400 shrink-0">変更</span>
+          </div>
+
+          {/* 目標値 */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-400">目標値</label>
+            <label className="text-xs text-gray-400">目標値 (この値以上で達成)</label>
             <input
               type="number"
               min={1}
-              value={(item as EditorTask & { count?: number }).count ?? 1}
+              value={(item as EditorTask).count ?? 1}
               onChange={(e) => handleChange({ count: Number(e.target.value) } as any)}
-              className="bg-black/40 border border-gray-600 p-2 text-sm text-white w-24 outline-none focus:border-blue-500"
+              className="bg-black/40 border border-gray-600 p-2 text-sm text-white w-32 outline-none focus:border-blue-500"
             />
           </div>
         </div>
       )
     }
 
+    // ----- チェックマーク -----
     if (item.type === 'checkmark') {
       return (
         <div className="flex flex-col gap-2">
@@ -390,6 +385,9 @@ export function TaskRewardEditorModal({
     )
   })()
 
+  // 表示名フィールドが不要なタイプ
+  const noDisplayName = item.type === 'point' || item.type === 'advancement' || item.type === 'stat' || item.type === 'checkmark'
+
   const inner = (
     <>
       <div className="flex justify-between items-center mb-4 border-b border-gray-600 pb-3 shrink-0">
@@ -407,7 +405,7 @@ export function TaskRewardEditorModal({
       <div className="flex flex-col gap-4 flex-1 overflow-y-auto min-h-0">
         {taskSpecificField}
 
-        {item.type !== 'point' && (
+        {!noDisplayName && (
           <div className="flex flex-col gap-2">
             <label className="text-xs text-gray-400 uppercase tracking-wider">表示名 (省略可)</label>
             <input
@@ -429,6 +427,22 @@ export function TaskRewardEditorModal({
           完了
         </button>
       </div>
+
+      {/* サブモーダル: 進捗選択 */}
+      {showAdvSelector && (
+        <AdvancementSelectorModal
+          close={() => setShowAdvSelector(false)}
+          onSelect={handleAdvancementSelect}
+        />
+      )}
+
+      {/* サブモーダル: 統計選択 */}
+      {showStatSelector && (
+        <StatSelectorModal
+          close={() => setShowStatSelector(false)}
+          onSelect={handleStatSelect}
+        />
+      )}
     </>
   )
 
@@ -446,7 +460,7 @@ export function TaskRewardEditorModal({
       onClick={close}
     >
       <div
-        className="bg-[#2d2f3b] border-2 border-[#1e1f29] w-[480px] max-h-[600px] flex flex-col p-5 shadow-2xl text-white"
+        className="bg-[#2d2f3b] border-2 border-[#1e1f29] w-[480px] max-h-[600px] flex flex-col p-5 shadow-2xl text-white relative"
         onClick={(e) => e.stopPropagation()}
       >
         {inner}

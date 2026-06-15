@@ -1,0 +1,95 @@
+package com.kamesuta.advquesting.listener;
+
+import com.kamesuta.advquesting.data.ProgressManager;
+import org.bukkit.Material;
+import org.bukkit.Statistic;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.player.PlayerStatisticIncrementEvent;
+
+/**
+ * 統計 (Statistic) の変化を監視して stat 条件の進捗を更新する。
+ *
+ * PlayerStatisticIncrementEvent で mined / crafted / used / broken /
+ * picked_up / dropped / killed / killed_by / custom の全カテゴリをカバーする。
+ * ただしこのイベントが発火しない統計もあるため、主要な採掘・討伐は
+ * BlockBreakEvent / EntityDeathEvent でも補完する。
+ */
+public class StatProgressListener implements Listener {
+
+    private final ProgressManager progressManager;
+
+    public StatProgressListener(ProgressManager progressManager) {
+        this.progressManager = progressManager;
+    }
+
+    /**
+     * 統計値が増加したとき。
+     * Bukkit の Statistic 列挙型を "minecraft:*" 形式の statType に変換して通知する。
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onStatistic(PlayerStatisticIncrementEvent event) {
+        Player player = event.getPlayer();
+        Statistic stat = event.getStatistic();
+
+        // Statistic の種類に応じて statType と statId を決定する
+        String statType;
+        String statId;
+
+        switch (stat.getType()) {
+            case BLOCK -> {
+                // アイテム/ブロック系の統計カテゴリを Statistic 名から判定
+                statType = toStatType(stat);
+                if (statType == null) return;
+                Material material = event.getMaterial();
+                if (material == null) return;
+                statId = "minecraft:" + material.getKey().getKey();
+            }
+            case ITEM -> {
+                statType = toStatType(stat);
+                if (statType == null) return;
+                Material material = event.getMaterial();
+                if (material == null) return;
+                statId = "minecraft:" + material.getKey().getKey();
+            }
+            case ENTITY -> {
+                statType = toStatType(stat);
+                if (statType == null) return;
+                EntityType entityType = event.getEntityType();
+                if (entityType == null) return;
+                statId = "minecraft:" + entityType.getKey().getKey();
+            }
+            case UNTYPED -> {
+                // カスタム統計 (JUMP, WALK_ONE_CM, etc.)
+                statType = "minecraft:custom";
+                statId = "minecraft:" + stat.getKey().getKey();
+            }
+            default -> { return; }
+        }
+
+        int delta = event.getNewValue() - event.getPreviousValue();
+        if (delta <= 0) return;
+
+        progressManager.onStat(player.getUniqueId().toString(), statType, statId, event.getNewValue());
+    }
+
+    /** Bukkit の Statistic を "minecraft:mined" 等の statType 文字列に変換する */
+    private static String toStatType(Statistic stat) {
+        return switch (stat) {
+            case MINE_BLOCK         -> "minecraft:mined";
+            case CRAFT_ITEM         -> "minecraft:crafted";
+            case USE_ITEM           -> "minecraft:used";
+            case BREAK_ITEM         -> "minecraft:broken";
+            case PICKUP             -> "minecraft:picked_up";
+            case DROP               -> "minecraft:dropped";
+            case KILL_ENTITY        -> "minecraft:killed";
+            case ENTITY_KILLED_BY   -> "minecraft:killed_by";
+            default                 -> null;
+        };
+    }
+}

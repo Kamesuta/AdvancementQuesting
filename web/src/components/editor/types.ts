@@ -24,10 +24,15 @@ export interface EditorTask {
   id: string
   type: string        // TASK_TYPES の id
   value: string       // 表示テキスト / コマンド文字列など
-  itemType?: string   // type === 'item' の場合のアイテム種別
+  itemType?: string   // type === 'item' / type === 'stat' (アイテムベース統計) の場合のアイテム種別
   count?: number
   nbt?: string        // serializeItemAsJson JSON文字列 (特殊アイテム用)
   displayName?: string // カスタム表示名
+  // type === 'advancement' の場合
+  advancementId?: string
+  // type === 'stat' の場合
+  statType?: string   // "minecraft:mined" など
+  statId?: string     // "minecraft:diamond" など (カスタム統計は statType 自体に含む)
 }
 
 /** 報酬のエディタ内表現 */
@@ -71,6 +76,8 @@ export type ItemSelectorConfig =
   | { type: 'quest_icon'; nodeId: string }
   | { type: 'task_item'; nodeId: string; taskId: string }
   | { type: 'reward_item'; nodeId: string; rewardId: string }
+  // 統計条件: item ベースの統計 (mined / crafted / etc.) でアイテムを選ぶ
+  | { type: 'task_stat_item'; nodeId: string; taskId: string }
 
 /** タスク/報酬の詳細編集モーダルを開く際の設定 */
 export interface EditingTaskReward {

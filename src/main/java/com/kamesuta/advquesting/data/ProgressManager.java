@@ -95,6 +95,31 @@ public class ProgressManager {
     }
 
     /**
+     * 統計値が変化したとき呼ぶ。
+     * statType / statId が一致する stat 条件を持つクエストの進捗を更新する。
+     * @param statType  "minecraft:mined" など
+     * @param statId    "minecraft:diamond" など
+     * @param currentValue プレイヤーの現在の統計値 (累積値)
+     */
+    public void onStat(String playerUuid, String statType, String statId, int currentValue) {
+        try {
+            for (Quest quest : questManager.loadAll()) {
+                if (!"public".equals(quest.status)) continue;
+                if (quest.conditions == null) continue;
+                boolean hasMatch = quest.conditions.stream().anyMatch(c -> {
+                    if (!"stat".equals(c.get("type"))) return false;
+                    return statType.equals(c.get("statType")) && statId.equals(c.get("statId"));
+                });
+                if (hasMatch) {
+                    updateStatProgress(playerUuid, quest, statType, statId, currentValue);
+                }
+            }
+        } catch (Exception e) {
+            log.warning("onStat error: " + e.getMessage());
+        }
+    }
+
+    /**
      * 報酬を受け取る。
      * @return true: 受け取り成功、false: 未完了または受け取り済み
      */
@@ -223,6 +248,47 @@ public class ProgressManager {
             boolean nowDone = newCount >= required;
             progress.removeIf(p -> condId.equals(p.get("conditionId")));
             progress.add(Map.of("conditionId", condId, "current", newCount, "required", required, "completed", nowDone));
+            changed = true;
+        }
+        if (!changed) return;
+
+        boolean allDone = isAllConditionsMet(quest, progress);
+        String completedAt = allDone ? Instant.now().toString() : null;
+        progressDao.upsertProgress(playerUuid, quest.id, MAPPER.writeValueAsString(progress), allDone, completedAt);
+
+        if (allDone) {
+            notifyQuestComplete(playerUuid, quest);
+        } else if (notificationRoutes != null) {
+            notificationRoutes.sendProgressUpdate(playerUuid, quest.id, false);
+        }
+    }
+
+    /** stat 条件の進捗を更新する。currentValue が required 以上になったら達成。 */
+    private void updateStatProgress(String playerUuid, Quest quest, String statType, String statId, int currentValue)
+            throws Exception {
+        ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.id);
+        List<Map<String, Object>> progress = record == null
+            ? new ArrayList<>()
+            : MAPPER.readValue(record.progress(), LIST_MAP_TYPE);
+
+        boolean changed = false;
+        for (Map<String, Object> cond : quest.conditions) {
+            if (!"stat".equals(cond.get("type"))) continue;
+            if (!statType.equals(cond.get("statType"))) continue;
+            if (!statId.equals(cond.get("statId"))) continue;
+            String condId = (String) cond.get("id");
+            int required = ((Number) cond.getOrDefault("count", 1)).intValue();
+
+            Map<String, Object> existing = progress.stream()
+                .filter(p -> condId.equals(p.get("conditionId")))
+                .findFirst().orElse(null);
+            boolean wasCompleted = existing != null && Boolean.TRUE.equals(existing.get("completed"));
+            if (wasCompleted) continue;
+
+            int capped = Math.min(currentValue, required);
+            boolean nowDone = currentValue >= required;
+            progress.removeIf(p -> condId.equals(p.get("conditionId")));
+            progress.add(Map.of("conditionId", condId, "current", capped, "required", required, "completed", nowDone));
             changed = true;
         }
         if (!changed) return;

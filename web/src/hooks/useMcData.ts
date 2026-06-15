@@ -51,6 +51,80 @@ export function getBlockTextureUrl(id: string): string {
   return `/mc/textures/block/${id}.png`
 }
 
+/** アドバンスメント名を lang ファイルから解決する */
+export function getAdvancementName(
+  lang: { ja: Record<string, string>; en: Record<string, string> } | undefined,
+  id: string,
+): string {
+  if (!lang) return id
+  // "minecraft:story/mine_wood" → "advancements.story.mine_wood.title"
+  const key = id.replace('minecraft:', 'advancements.').replace(/\//g, '.')
+  return lang.ja[`${key}.title`] ?? lang.en[`${key}.title`] ?? id
+}
+
+/** カスタム統計名を lang ファイルから解決する */
+export function getCustomStatName(
+  lang: { ja: Record<string, string>; en: Record<string, string> } | undefined,
+  id: string,
+): string {
+  if (!lang) return id
+  // "minecraft:jump" → "stat.minecraft.jump"
+  const key = id.replace(':', '.')
+  return lang.ja[`stat.${key}`] ?? lang.en[`stat.${key}`] ?? id
+}
+
+/** アドバンスメントID一覧をロードして名前付きエントリとして返す */
+export function useMcAdvancements() {
+  const langQuery = useMcLang()
+
+  const advQuery = useQuery({
+    queryKey: ['mc-advancements'],
+    queryFn: () => fetchJson<string[]>('/mc/registry/advancement.json'),
+    staleTime: Infinity,
+    gcTime: Infinity,
+  })
+
+  const advancements: McItemEntry[] | undefined =
+    advQuery.data && langQuery.data
+      ? advQuery.data.map((id) => ({
+          id,
+          name: getAdvancementName(langQuery.data, id),
+        }))
+      : undefined
+
+  return {
+    advancements,
+    isLoading: advQuery.isLoading || langQuery.isLoading,
+    lang: langQuery.data,
+  }
+}
+
+/** カスタム統計ID一覧をロードして名前付きエントリとして返す */
+export function useMcCustomStats() {
+  const langQuery = useMcLang()
+
+  const statQuery = useQuery({
+    queryKey: ['mc-custom-stats'],
+    queryFn: () => fetchJson<string[]>('/mc/registry/custom_stat.json'),
+    staleTime: Infinity,
+    gcTime: Infinity,
+  })
+
+  const stats: McItemEntry[] | undefined =
+    statQuery.data && langQuery.data
+      ? statQuery.data.map((id) => ({
+          id,
+          name: getCustomStatName(langQuery.data, id),
+        }))
+      : undefined
+
+  return {
+    stats,
+    isLoading: statQuery.isLoading || langQuery.isLoading,
+    lang: langQuery.data,
+  }
+}
+
 /** アイテムID一覧をロードして名前付きエントリとして返す */
 export function useMcItems() {
   const langQuery = useMcLang()
