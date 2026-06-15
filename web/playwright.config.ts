@@ -18,7 +18,7 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      testMatch: /editor\.spec\.ts/,
+      testMatch: /(?<!mobile)\.spec\.ts$/,
     },
     {
       name: 'mobile',
