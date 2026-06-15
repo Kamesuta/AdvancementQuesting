@@ -5,10 +5,12 @@ const MC_HOST = process.env.MC_HOST ?? 'localhost'
 const MC_PORT = parseInt(process.env.MC_PORT ?? '25599', 10)
 export const API_BASE = process.env.API_BASE ?? 'http://localhost:8090'
 
+// RCON 設定 (OP権限コマンド実行用)
 const RCON_HOST = process.env.MC_HOST ?? 'localhost'
 const RCON_PORT = parseInt(process.env.RCON_PORT ?? '25598', 10)
 const RCON_PASS = process.env.RCON_PASS ?? 'testpass'
 
+/** Mineflayer ボットを作成してスポーンするまで待つ */
 export function createBot(username: string): Promise<Bot> {
   return new Promise((resolve, reject) => {
     const bot = mineflayer.createBot({
@@ -25,6 +27,7 @@ export function createBot(username: string): Promise<Bot> {
   })
 }
 
+/** ボットを切断して終了 */
 export function quitBot(bot: Bot): Promise<void> {
   return new Promise((resolve) => {
     bot.once('end', () => resolve())
@@ -32,6 +35,10 @@ export function quitBot(bot: Bot): Promise<void> {
   })
 }
 
+/**
+ * チャットメッセージを待ち受ける。
+ * predicate が true を返した最初のメッセージを resolve する。
+ */
 export function waitForChat(bot: Bot, predicate: (text: string) => boolean, timeoutMs = 5000): Promise<string> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -61,6 +68,7 @@ interface ApiResponse<T = unknown> {
   body: T
 }
 
+/** HTTP リクエストヘルパー */
 export async function apiRequest<T = unknown>(
   method: string,
   path: string,

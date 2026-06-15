@@ -31,6 +31,7 @@ async function summonAndPickup(bot: Bot, itemId: string, count = 1): Promise<voi
     await rcon(`execute at ${BOT_NAME} run summon item ~ ~ ~ {Item:{id:"minecraft:${itemId}",Count:1b},PickupDelay:0s}`)
     await new Promise(r => setTimeout(r, 300))
   }
+  // 少し動いて確実に拾う
   for (let i = 0; i < 3; i++) {
     bot.setControlState('forward', true)
     await new Promise(r => setTimeout(r, 200))
@@ -57,6 +58,7 @@ describe('アイテム拾得 → 条件進捗 → uncomplete → 再達成', () 
     await rcon(`gamemode survival ${BOT_NAME}`).catch(() => {})
     await new Promise(r => setTimeout(r, 500))
 
+    // トークン取得
     const chatPromise = waitForChat(bot, t => /\d{6}/.test(t), 8000)
     bot.chat('/quest code')
     const msg = await chatPromise
@@ -67,6 +69,7 @@ describe('アイテム拾得 → 条件進捗 → uncomplete → 再達成', () 
     assert.equal(status, 200, `認証失敗: ${JSON.stringify(body)}`)
     token = body.token
 
+    // oak_log×1 条件の public クエストを作成
     const { status: cs, body: created } = await apiRequest<{ id: number }>(
       'POST', '/api/quests', {
         token,

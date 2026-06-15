@@ -36,8 +36,10 @@ describe('アイテム進捗 & クエスト完了', () => {
     assert.equal(authStatus, 200, `認証失敗: ${JSON.stringify(authBody)}`)
     token = authBody.token
 
+    // OP 権限が必要なのでクエスト作成前にロールを確認
     const { body: me } = await apiRequest<{ role: string }>('GET', '/api/auth/me', { token })
     if (me.role !== 'editor') {
+      // editor 権限がない場合は既存の public クエストを探す
       const { body: quests } = await apiRequest<Array<{ id: number; conditions?: Array<{ type: string; itemType?: string }> }>>(
         'GET', '/api/quests?status=public',
       )
@@ -49,10 +51,12 @@ describe('アイテム進捗 & クエスト完了', () => {
         console.log(`既存 item クエストを使用: id=${questId}`)
         return
       }
+      // 存在しない場合はテストをスキップ (OP権限が必要)
       console.warn('editor 権限がないため、item クエストを作成できません。テストをスキップします。')
       return
     }
 
+    // item 条件付きクエストを作成
     const { status: createStatus, body: quest } = await apiRequest<{ id: number; title: string }>(
       'POST', '/api/quests', {
         token,
@@ -102,19 +106,29 @@ describe('アイテム進捗 & クエスト完了', () => {
   it(`${ITEM_TYPE} を ${ITEM_COUNT} 個拾うと進捗が更新される`, async () => {
     if (!questId) { console.warn('questId 未設定 — スキップ'); return }
 
+    // /give でボットにアイテムを与える
+    // EntityPickupItemEvent を発火させるため、ボットのいる場所にアイテムをドロップ
+    // (コンソールから実行、または OP コマンド)
     waitForChat(
       bot,
       text => text.includes('クエスト完了') || text.includes(ITEM_TYPE) || text.includes('✨'),
       15000,
-    ).catch(() => null)
+    ).catch(() => null)  // タイムアウトしてもクラッシュしない
 
+    // OP コマンドでアイテムをドロップ (ボット付近に落とす)
+    // /summon item ~ ~ ~ {Item:{id:apple,Count:3}} は Paper 1.21 で動作する
     bot.chat(`/give ItemTestPlayer ${ITEM_TYPE} ${ITEM_COUNT}`)
+    // give は EntityPickupItemEvent を発火しないのでプラグイン側での拾いはトリガーされない
+    // 代わりに少し待ってから進捗 API を確認する
 
     await new Promise(r => setTimeout(r, 3000))
 
+    // 進捗 API で確認
     const { status, body } = await apiRequest('GET', `/api/progress/${questId}`, { token })
 
     if (status === 404) {
+      // /give はアイテムを直接インベントリに入れるため EntityPickupItemEvent が発火しない
+      // これはプラグインの仕様上の制限 — スキップ
       console.warn('⚠ /give は EntityPickupItemEvent を発火しません。地面からの拾得でのみ進捗が更新されます。')
       return
     }
