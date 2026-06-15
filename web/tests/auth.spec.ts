@@ -7,10 +7,12 @@
  *  5. プレイヤーログイン → 提案ボタン表示
  * 12. コードログイン
  * 15. ログアウト→再ログインの繰り返し
+ * W-C. 読み取り専用モーダル（未ログイン/プレイヤーにはタスク追加・削除ボタン非表示）
+ * W-G. ?code=XXXXXX 付きURLで自動ログイン
  */
 
 import { test, expect } from '@playwright/test'
-import { loginAs, loggedInBtn, loggedOutBtn, MOCK } from './helpers.js'
+import { loginAs, loggedInBtn, loggedOutBtn, openQuestModal, MOCK } from './helpers.js'
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/')
@@ -84,6 +86,51 @@ test('コードログイン: ログインモーダルからコード入力でロ
   await page.reload()
   await expect(page.locator('[data-node-id]').first()).toBeVisible({ timeout: 10000 })
   await expect(loggedInBtn(page)).toBeVisible({ timeout: 8000 })
+})
+
+// W-C
+test('未ログイン: モーダルにタスク追加ボタン・削除ボタンが表示されない (W-C-1)', async ({ page }) => {
+  // 未ログインでノードを開く (test 13 と同じ前提: readOnly=true)
+  await openQuestModal(page, '1')
+
+  // タスク追加ボタン (hover:bg-white/10) が非表示であること
+  await expect(page.locator('button.hover\\:bg-white\\/10').first()).not.toBeVisible()
+  // 削除ボタン (条件・報酬行の✕) が非表示であること
+  await expect(page.locator('[title="削除"]').first()).not.toBeVisible()
+
+  await page.getByRole('button', { name: '閉じる' }).last().click()
+})
+
+test('プレイヤー: 既存クエストのモーダルでタスク追加・削除ボタンが表示されない (W-C-2)', async ({ page }) => {
+  await loginAs(page, 'demo-player-token')
+  await openQuestModal(page, '1')
+
+  // プレイヤーも既存クエストは読み取り専用
+  await expect(page.getByPlaceholder('クエストのタイトル')).toHaveAttribute('readonly', '')
+  await expect(page.locator('button.hover\\:bg-white\\/10').first()).not.toBeVisible()
+
+  await page.getByRole('button', { name: '閉じる' }).last().click()
+})
+
+// W-G
+test('URLログイン: ?code=XXXXXX 付きアクセスで自動ログインされる (W-G-1)', async ({ page }) => {
+  // beforeEach の goto('/') より前にコードを準備してから直接 /?code= へアクセス
+  await page.request.post(`${MOCK}/api/test/restore-auth-code`)
+  await page.goto('/?code=123456')
+  await expect(page.locator('[data-node-id]').first()).toBeVisible({ timeout: 10000 })
+
+  // ログイン済みになっていること
+  await expect(loggedInBtn(page)).toBeVisible({ timeout: 8000 })
+})
+
+test('URLログイン: ログイン後にURLのcodeパラメータが除去される (W-G-2)', async ({ page }) => {
+  await page.request.post(`${MOCK}/api/test/restore-auth-code`)
+  await page.goto('/?code=123456')
+  await expect(page.locator('[data-node-id]').first()).toBeVisible({ timeout: 10000 })
+  await expect(loggedInBtn(page)).toBeVisible({ timeout: 8000 })
+
+  // URL から ?code= が消えていること
+  await expect.poll(() => new URL(page.url()).search, { timeout: 3000 }).toBe('')
 })
 
 // 15
