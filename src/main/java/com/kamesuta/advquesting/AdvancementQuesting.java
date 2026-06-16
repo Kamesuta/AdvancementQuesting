@@ -18,6 +18,7 @@ import com.kamesuta.advquesting.db.SessionDao;
 import com.kamesuta.advquesting.listener.AdvancementListener;
 import com.kamesuta.advquesting.listener.ItemProgressListener;
 import com.kamesuta.advquesting.listener.LocationProgressListener;
+import com.kamesuta.advquesting.listener.ScoreboardListener;
 import com.kamesuta.advquesting.listener.StatProgressListener;
 import io.javalin.Javalin;
 import io.javalin.http.staticfiles.Location;
@@ -30,6 +31,7 @@ public final class AdvancementQuesting extends JavaPlugin {
 
     private Javalin app;
     private DatabaseManager db;
+    private ScoreboardListener scoreboardListener;
 
     @Override
     public void onEnable() {
@@ -94,6 +96,8 @@ public final class AdvancementQuesting extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new ItemProgressListener(progressManager), this);
         getServer().getPluginManager().registerEvents(new StatProgressListener(progressManager), this);
         getServer().getPluginManager().registerEvents(new LocationProgressListener(progressManager), this);
+        scoreboardListener = new ScoreboardListener(progressManager);
+        scoreboardListener.start(this);
 
         // コマンド登録
         QuestCommand questCommand = new QuestCommand(authCodeDao, webUrl, progressDao, progressManager, questManager);
@@ -107,6 +111,7 @@ public final class AdvancementQuesting extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (scoreboardListener != null) scoreboardListener.stop();
         if (app != null) app.stop();
         if (db != null) db.close();
     }

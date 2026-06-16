@@ -372,6 +372,40 @@ export function TaskRewardEditorModal({
       )
     }
 
+    // ----- スコアボード -----
+    if (item.type === 'scoreboard') {
+      const t = item as EditorTask
+      return (
+        <div className="flex flex-col gap-3">
+          <label className="text-xs text-blue-300 font-bold uppercase tracking-wider">スコアボード</label>
+
+          {/* スコアボード名 */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-400">スコアボード名 (Objective)</label>
+            <input
+              type="text"
+              value={t.objective ?? ''}
+              onChange={(e) => handleChange({ objective: e.target.value } as any)}
+              placeholder="point"
+              className="bg-black/40 border border-gray-600 p-2 text-sm text-white font-mono outline-none focus:border-blue-500"
+            />
+          </div>
+
+          {/* 目標スコア */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-400">目標スコア (この値以上で達成)</label>
+            <input
+              type="number"
+              min={1}
+              value={t.score ?? 1}
+              onChange={(e) => handleChange({ score: Number(e.target.value) } as any)}
+              className="bg-black/40 border border-gray-600 p-2 text-sm text-white w-32 outline-none focus:border-blue-500"
+            />
+          </div>
+        </div>
+      )
+    }
+
     // ----- チェックマーク -----
     if (item.type === 'checkmark') {
       return (

@@ -23,6 +23,7 @@ const QUEST_ID_3 = 3
 const QUEST_ID_4 = 4
 const QUEST_ID_5 = 5
 const QUEST_ID_6 = 6
+const QUEST_ID_7 = 7
 
 async function seed() {
   migrate(db, { migrationsFolder: './mock-server/db/migrations' })
@@ -112,6 +113,22 @@ async function seed() {
       ],
       rewards: [],
       mapPosition: { x: 600, y: 250 },
+      customButtons: [] as object[],
+      status: 'public' as const,
+      creatorUuid: null,
+    },
+    {
+      id: QUEST_ID_7,
+      title: 'スコアボードテスト',
+      description: 'スコアボード条件のテスト用クエスト。',
+      icon: 'paper',
+      category: 'テスト',
+      prerequisites: [] as number[],
+      conditions: [
+        { id: 'cond-7-sb', type: 'scoreboard', objective: 'test_score', score: 100, label: 'スコア100以上' },
+      ],
+      rewards: [],
+      mapPosition: { x: 600, y: 400 },
       customButtons: [] as object[],
       status: 'public' as const,
       creatorUuid: null,

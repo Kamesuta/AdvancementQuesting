@@ -44,6 +44,10 @@ export function getDisplayText(
   } else if (item.type === 'point') {
     const amount = (item as any).amount ?? 0
     detail = `${amount} pt`
+  } else if (item.type === 'scoreboard') {
+    const t = item as EditorTask
+    const label = item.value || t.objective || '未設定'
+    detail = t.objective ? `${label} ≥ ${t.score ?? 1}` : '未設定'
   } else if (item.type === 'location') {
     const t = item as EditorTask
     const dim = { overworld: '地上', nether: 'ネザー', end: 'エンド' }[t.dimension ?? 'overworld'] ?? t.dimension ?? '地上'

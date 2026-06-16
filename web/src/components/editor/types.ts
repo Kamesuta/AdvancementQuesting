@@ -39,6 +39,9 @@ export interface EditorTask {
   locZ?: number
   dimension?: string  // "overworld" / "nether" / "end"
   radius?: number
+  // type === 'scoreboard' の場合
+  objective?: string  // スコアボード名
+  score?: number      // この値以上で達成
 }
 
 /** 報酬のエディタ内表現 */

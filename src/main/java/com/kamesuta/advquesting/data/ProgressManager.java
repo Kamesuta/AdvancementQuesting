@@ -120,6 +120,29 @@ public class ProgressManager {
     }
 
     /**
+     * スコアボードのスコアが変化したとき呼ぶ。
+     * objective と score が一致する scoreboard 条件を持つクエストを確認する。
+     * @param objective スコアボード名
+     * @param score     プレイヤーの現在スコア
+     */
+    public void onScoreChange(String playerUuid, String objective, int score) {
+        try {
+            for (Quest quest : questManager.loadAll()) {
+                if (!"public".equals(quest.status)) continue;
+                if (quest.conditions == null) continue;
+                boolean hasMatch = quest.conditions.stream().anyMatch(c ->
+                    "scoreboard".equals(c.get("type")) && objective.equals(c.get("objective"))
+                );
+                if (hasMatch) {
+                    updateScoreboardProgress(playerUuid, quest, objective, score);
+                }
+            }
+        } catch (Exception e) {
+            log.warning("onScoreChange error: " + e.getMessage());
+        }
+    }
+
+    /**
      * プレイヤーが移動したとき呼ぶ。
      * location 条件を持つクエストを確認し、座標が半径内に入っていれば達成とする。
      * @param dimension "overworld" / "nether" / "end"
@@ -386,6 +409,44 @@ public class ProgressManager {
             if (!done) return false;
         }
         return true;
+    }
+
+    /** scoreboard 条件の進捗を確認し、スコアが目標値以上なら達成とする。 */
+    private void updateScoreboardProgress(String playerUuid, Quest quest, String objective, int score)
+            throws Exception {
+        ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.id);
+        List<Map<String, Object>> progress = record == null
+            ? new ArrayList<>()
+            : MAPPER.readValue(record.progress(), LIST_MAP_TYPE);
+
+        boolean changed = false;
+        for (Map<String, Object> cond : quest.conditions) {
+            if (!"scoreboard".equals(cond.get("type"))) continue;
+            if (!objective.equals(cond.get("objective"))) continue;
+            String condId = (String) cond.get("id");
+            int required = ((Number) cond.getOrDefault("score", 1)).intValue();
+
+            boolean alreadyDone = progress.stream()
+                .anyMatch(p -> condId.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));
+            if (alreadyDone) continue;
+
+            int capped = Math.min(score, required);
+            boolean nowDone = score >= required;
+            progress.removeIf(p -> condId.equals(p.get("conditionId")));
+            progress.add(Map.of("conditionId", condId, "current", capped, "required", required, "completed", nowDone));
+            changed = true;
+        }
+        if (!changed) return;
+
+        boolean allDone = isAllConditionsMet(quest, progress);
+        String completedAt = allDone ? java.time.Instant.now().toString() : null;
+        progressDao.upsertProgress(playerUuid, quest.id, MAPPER.writeValueAsString(progress), allDone, completedAt);
+
+        if (allDone) {
+            notifyQuestComplete(playerUuid, quest);
+        } else if (notificationRoutes != null) {
+            notificationRoutes.sendProgressUpdate(playerUuid, quest.id, false);
+        }
     }
 
     /** location 条件の進捗を確認し、半径内に入っていれば達成とする。 */
