@@ -51,12 +51,12 @@ async function downloadJar(): Promise<void> {
     console.log(`  JARキャッシュ済み: ${JAR_PATH}`)
     return
   }
-  console.log('  Minecraft 1.21.4 client.jar をダウンロード中 (~28MB)...')
+  console.log('  Minecraft 1.21.11 client.jar をダウンロード中 (~28MB)...')
   mkdirSync(CACHE_DIR, { recursive: true })
   const manifestUrl = 'https://launchermeta.mojang.com/mc/game/version_manifest.json'
   const manifest = await fetch(manifestUrl).then(r => r.json()) as { versions: { id: string; url: string }[] }
-  const ver = manifest.versions.find(v => v.id === '1.21.4')
-  if (!ver) throw new Error('1.21.4 が見つかりません')
+  const ver = manifest.versions.find(v => v.id === '1.21.11')
+  if (!ver) throw new Error('1.21.11 が見つかりません')
   const meta = await fetch(ver.url).then(r => r.json()) as { downloads: { client: { url: string } } }
   const jarUrl = meta.downloads.client.url
   const buf = await fetch(jarUrl).then(r => r.arrayBuffer())
@@ -152,7 +152,7 @@ async function buildAtlas(pngMap: Map<string, string>): Promise<{ atlasPath: str
 
   console.log(`  ${count} 枚 → ${cols}x${rows} グリッド (${atlasW}x${atlasH}px)`)
 
-  // 各タイルを composites として配置
+  // 各タイルを trim → TILE_SIZE にリサイズして composites として配置
   const composites: sharp.OverlayOptions[] = []
   const coordMap: Record<string, [number, number, number, number]> = {}
 
@@ -162,7 +162,15 @@ async function buildAtlas(pngMap: Map<string, string>): Promise<{ atlasPath: str
     const row = Math.floor(i / cols)
     const x = col * TILE_SIZE
     const y = row * TILE_SIZE
-    composites.push({ input: filePath, left: x, top: y })
+
+    // 透明余白を除去してからTILE_SIZEの正方形に収まるようリサイズ（アスペクト比維持、透明パディング付き）
+    const input = await sharp(filePath)
+      .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 1 })
+      .resize(TILE_SIZE, TILE_SIZE, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png()
+      .toBuffer()
+
+    composites.push({ input, left: x, top: y })
     coordMap[`block/${id}`] = [x, y, TILE_SIZE, TILE_SIZE]
   }
 

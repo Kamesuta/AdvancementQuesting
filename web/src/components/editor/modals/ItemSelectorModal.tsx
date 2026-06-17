@@ -43,7 +43,7 @@ export function ItemSelectorModal({ close, onSelect }: ItemSelectorModalProps) {
             className="w-10 h-10 bg-[#C6C6C6] border-t-white border-l-white border-b-[#555555] border-r-[#555555] border-2 flex items-center justify-center cursor-pointer active:bg-gray-300"
             title={`${item.name} (${item.id})`}
           >
-            <ItemIcon type={item.id} size={24} />
+            <ItemIcon type={item.id} size={36} />
           </div>
         ))
       )}
