@@ -103,7 +103,7 @@ export function StatSelectorModal({ close, onSelect }: StatSelectorModalProps) {
   const itemList = (
     <div
       className="bg-[#8B8B8B] border-t-[#3B3B3B] border-l-[#3B3B3B] border-b-[#C6C6C6] border-r-[#C6C6C6] border-2 p-2 overflow-y-auto flex-1"
-      style={{ display: 'grid', gridTemplateColumns: `repeat(${isMobile ? 6 : 8}, 2.5rem)`, gap: '4px', alignContent: 'start' }}
+      style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(2.5rem, 1fr))', gap: '4px', alignContent: 'start' }}
     >
       {isLoading ? (
         <div className="col-span-6 text-center text-sm text-black py-8">ロード中...</div>

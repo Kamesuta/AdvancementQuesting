@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react'
 import { ItemIcon } from '../ItemIcon.js'
-import { useIsMobile } from '@/hooks/useIsMobile.js'
 import { useMcItems } from '@/hooks/useMcData.js'
 
 interface ItemSelectorModalProps {
@@ -9,7 +8,6 @@ interface ItemSelectorModalProps {
 }
 
 export function ItemSelectorModal({ close, onSelect }: ItemSelectorModalProps) {
-  const isMobile = useIsMobile()
   const [search, setSearch] = useState('')
   const { items, isLoading } = useMcItems()
 
@@ -24,12 +22,10 @@ export function ItemSelectorModal({ close, onSelect }: ItemSelectorModalProps) {
     )
   }, [items, search])
 
-  const cols = isMobile ? 6 : 8
-
   const grid = (
     <div
       className="bg-[#8B8B8B] border-t-[#3B3B3B] border-l-[#3B3B3B] border-b-[#C6C6C6] border-r-[#C6C6C6] border-2 p-2 overflow-y-auto flex-1"
-      style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 2.5rem)`, gap: '4px', alignContent: 'start' }}
+      style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(2.5rem, 1fr))', gap: '4px', alignContent: 'start' }}
     >
       {isLoading ? (
         <div className="col-span-6 text-center text-sm text-black py-8">ロード中...</div>
@@ -64,39 +60,14 @@ export function ItemSelectorModal({ close, onSelect }: ItemSelectorModalProps) {
     </div>
   )
 
-  if (isMobile) {
-    return (
-      <div className="absolute inset-0 z-[60] flex flex-col bg-[#C6C6C6]">
-        <div
-          className="flex items-center justify-between px-4 py-3 border-b-4 border-black shrink-0"
-          style={{ backgroundColor: '#8B8B8B' }}
-        >
-          <span className="font-bold text-black text-sm" style={{ fontFamily: '"Courier New", monospace' }}>
-            アイテムを選択
-          </span>
-          <button
-            onClick={close}
-            className="bg-[#C6C6C6] border-t-white border-l-white border-b-[#555555] border-r-[#555555] border-2 px-3 py-1 text-black text-sm font-bold"
-          >
-            ✕
-          </button>
-        </div>
-        {searchBar}
-        <div className="flex-1 overflow-hidden flex flex-col px-1 pb-2">
-          {grid}
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div
       className="absolute inset-0 z-[60] flex items-center justify-center bg-black/60"
       onClick={close}
     >
       <div
-        className="bg-[#C6C6C6] border-t-white border-l-white border-b-[#555555] border-r-[#555555] border-4 p-4 shadow-2xl flex flex-col"
-        style={{ width: '560px', height: '520px' }}
+        className="bg-[#C6C6C6] border-t-white border-l-white border-b-[#555555] border-r-[#555555] border-4 p-4 shadow-2xl flex flex-col w-[90vw] max-w-2xl"
+        style={{ height: '520px' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="text-black font-bold mb-2 shrink-0">アイテムを選択</div>
