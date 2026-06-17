@@ -66,17 +66,20 @@ export const ItemIcon: FC<ItemIconProps> = ({ type, size = 32 }) => {
       }
     } else {
       // blocks atlas (minecraft-render): タイルは blockTileSize x blockTileSize
+      // レンダリング画像は中央に寄った小さな描画なので2倍スケールで表示する
       const tileSize = atlas.blockTileSize
-      const scale = size / tileSize
+      const scale = (size / tileSize) * 2
       const atlasW = atlas.blockAtlasW || tileSize * 32
+      const offset = size / 2  // 2倍拡大した分だけ中央にずらす
       style = {
         width: size,
         height: size,
         flexShrink: 0,
+        overflow: 'hidden',
         imageRendering: 'pixelated',
         backgroundImage: 'url(/mc/atlas/blocks.png)',
         backgroundRepeat: 'no-repeat',
-        backgroundPosition: `-${ax * scale}px -${ay * scale}px`,
+        backgroundPosition: `-${ax * scale - offset}px -${ay * scale - offset}px`,
         backgroundSize: `${atlasW * scale}px auto`,
       }
     }

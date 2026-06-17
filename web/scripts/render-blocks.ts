@@ -163,14 +163,7 @@ async function buildAtlas(pngMap: Map<string, string>): Promise<{ atlasPath: str
     const x = col * TILE_SIZE
     const y = row * TILE_SIZE
 
-    // 透明余白を除去してからTILE_SIZEの正方形に収まるようリサイズ（アスペクト比維持、透明パディング付き）
-    const input = await sharp(filePath)
-      .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 1 })
-      .resize(TILE_SIZE, TILE_SIZE, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .png()
-      .toBuffer()
-
-    composites.push({ input, left: x, top: y })
+    composites.push({ input: filePath, left: x, top: y })
     coordMap[`block/${id}`] = [x, y, TILE_SIZE, TILE_SIZE]
   }
 
