@@ -1,7 +1,8 @@
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { MCMETA_ASSETS, MCMETA_ASSETS_JSON, MCMETA_REGISTRIES } from './mc-version.js'
+import sharp from 'sharp'
+import { MCMETA_ASSETS_JSON, MCMETA_REGISTRIES, MCMETA_ATLAS } from './mc-version.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const PUBLIC_MC = join(__dirname, '..', 'public', 'mc')
@@ -37,66 +38,53 @@ async function downloadLangFiles() {
   }
 }
 
-async function downloadItemRegistry() {
-  console.log('\n[registry] アイテムレジストリをダウンロード中...')
+async function downloadRegistries() {
+  console.log('\n[registry] レジストリをダウンロード中...')
   const registryDir = join(PUBLIC_MC, 'registry')
   ensureDir(registryDir)
 
-  const url = `${MCMETA_REGISTRIES}/item/data.json`
-  await downloadIfMissing(url, join(registryDir, 'item.json'))
+  await downloadIfMissing(
+    `${MCMETA_REGISTRIES}/item/data.json`,
+    join(registryDir, 'item.json'),
+  )
+  await downloadIfMissing(
+    `${MCMETA_REGISTRIES}/advancement/data.json`,
+    join(registryDir, 'advancement.json'),
+  )
+  // custom_stat は registries ブランチにない場合があるためスキップしない
+  const customStatUrl = `${MCMETA_REGISTRIES}/custom_stat/data.json`
+  const customStatDest = join(registryDir, 'custom_stat.json')
+  if (!existsSync(customStatDest)) {
+    const res = await fetch(customStatUrl)
+    if (res.ok) {
+      writeFileSync(customStatDest, Buffer.from(await res.arrayBuffer()))
+      console.log(`  downloaded: /registry/custom_stat.json`)
+    } else {
+      console.log(`  skip (not found): /registry/custom_stat.json`)
+    }
+  } else {
+    console.log(`  skip (cached): /registry/custom_stat.json`)
+  }
 }
 
-async function downloadTextures(itemIds: string[]) {
-  console.log('\n[textures] テクスチャをダウンロード中...')
-  const itemDir = join(PUBLIC_MC, 'textures', 'item')
-  const blockDir = join(PUBLIC_MC, 'textures', 'block')
-  ensureDir(itemDir)
-  ensureDir(blockDir)
+async function downloadItemAtlas() {
+  console.log('\n[item-atlas] misode items テクスチャアトラスをダウンロード中...')
+  const atlasDir = join(PUBLIC_MC, 'atlas')
+  ensureDir(atlasDir)
 
-  let downloaded = 0
-  let skipped = 0
-  let failed = 0
+  const pngPath = join(atlasDir, 'items.png')
+  const jsonPath = join(atlasDir, 'items.json')
+  const sizePath = join(atlasDir, 'items-size.json')
 
-  for (const id of itemIds) {
-    // アイテムテクスチャを優先、なければブロックテクスチャを試みる
-    const itemDest = join(itemDir, `${id}.png`)
-    const blockDest = join(blockDir, `${id}.png`)
+  await downloadIfMissing(`${MCMETA_ATLAS}/items/atlas.png`, pngPath)
+  await downloadIfMissing(`${MCMETA_ATLAS}/items/data.json`, jsonPath)
 
-    if (existsSync(itemDest)) {
-      skipped++
-      continue
-    }
-
-    // まずアイテムテクスチャを試みる
-    const itemUrl = `${MCMETA_ASSETS}/assets/minecraft/textures/item/${id}.png`
-    const res = await fetch(itemUrl)
-    if (res.ok) {
-      const buf = await res.arrayBuffer()
-      writeFileSync(itemDest, Buffer.from(buf))
-      downloaded++
-      continue
-    }
-
-    // ブロックテクスチャにフォールバック
-    if (!existsSync(blockDest)) {
-      const blockUrl = `${MCMETA_ASSETS}/assets/minecraft/textures/block/${id}.png`
-      const bres = await fetch(blockUrl)
-      if (bres.ok) {
-        const buf = await bres.arrayBuffer()
-        writeFileSync(blockDest, Buffer.from(buf))
-        downloaded++
-        continue
-      }
-    } else {
-      skipped++
-      continue
-    }
-
-    // テクスチャが存在しないアイテム (一部の内部アイテムなど) はスキップ
-    failed++
+  // items atlas の実際のサイズを記録 (ItemIcon の backgroundSize 計算に使用)
+  if (!existsSync(sizePath)) {
+    const meta = await sharp(pngPath).metadata()
+    writeFileSync(sizePath, JSON.stringify({ w: meta.width ?? 512, h: meta.height ?? 512 }))
+    console.log(`  items atlas size: ${meta.width}x${meta.height}`)
   }
-
-  console.log(`  downloaded: ${downloaded}, skipped: ${skipped}, no-texture: ${failed}`)
 }
 
 async function main() {
@@ -104,14 +92,11 @@ async function main() {
   ensureDir(PUBLIC_MC)
 
   await downloadLangFiles()
-  await downloadItemRegistry()
-
-  // アイテムIDを読んでテクスチャをダウンロード
-  const registryPath = join(PUBLIC_MC, 'registry', 'item.json')
-  const itemIds: string[] = JSON.parse(readFileSync(registryPath, 'utf-8'))
-  await downloadTextures(itemIds)
+  await downloadRegistries()
+  await downloadItemAtlas()
 
   console.log('\n完了!')
+  console.log('ヒント: ブロックアトラスを生成するには "npm run render-blocks" を実行してください。')
 }
 
 main().catch((e) => {

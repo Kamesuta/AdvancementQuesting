@@ -169,3 +169,7 @@ buildNumber.properties
 
 # Minecraft アセット (ビルド時にダウンロード)
 web/public/mc/
+
+# ブロックレンダリングキャッシュ (大容量ファイル)
+web/scripts/render-blocks-cache/
+web/scripts/render-test/

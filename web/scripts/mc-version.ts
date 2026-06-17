@@ -10,3 +10,7 @@ export const MCMETA_DATA =
 // アイテムIDレジストリはバージョン非依存のregistriesブランチを使用
 export const MCMETA_REGISTRIES =
   `https://raw.githubusercontent.com/misode/mcmeta/registries`
+
+// テクスチャアトラス (atlas ブランチ、バージョン非依存)
+export const MCMETA_ATLAS =
+  `https://raw.githubusercontent.com/misode/mcmeta/atlas`

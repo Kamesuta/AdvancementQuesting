@@ -42,13 +42,51 @@ export function getItemName(
   )
 }
 
-/** アイテムテクスチャURLを返す (item優先、blockフォールバック) */
-export function getItemTextureUrl(id: string): string {
-  return `/mc/textures/item/${id}.png`
+/** アトラスの座標マップ型: キー → [x, y, width, height] */
+export type AtlasMap = Record<string, [number, number, number, number]>
+
+export interface AtlasData {
+  /** キー → [x, y, w, h] 座標マップ (item/* と block/* が混在) */
+  coords: AtlasMap
+  /** items atlas (misode) の実際の画像サイズ */
+  itemsSize: { w: number; h: number }
+  /** blocks atlas (minecraft-render) のタイルサイズ (通常 64) */
+  blockTileSize: number
+  /** blocks atlas の幅 (px) */
+  blockAtlasW: number
 }
 
-export function getBlockTextureUrl(id: string): string {
-  return `/mc/textures/block/${id}.png`
+/** items アトラス (misode) と blocks アトラス (minecraft-render) をマージして返す */
+export function useMcAtlas() {
+  return useQuery({
+    queryKey: ['mc-atlas'],
+    queryFn: async (): Promise<AtlasData> => {
+      const [itemsRes, blocksRes, sizeRes] = await Promise.allSettled([
+        fetchJson<AtlasMap>('/mc/atlas/items.json'),
+        fetchJson<AtlasMap>('/mc/atlas/blocks.json'),
+        fetchJson<{ w: number; h: number }>('/mc/atlas/items-size.json'),
+      ])
+      const coords: AtlasMap = {}
+      if (itemsRes.status === 'fulfilled') Object.assign(coords, itemsRes.value)
+      if (blocksRes.status === 'fulfilled') Object.assign(coords, blocksRes.value)
+
+      const itemsSize = sizeRes.status === 'fulfilled'
+        ? sizeRes.value
+        : { w: 512, h: 512 }
+
+      // blocks atlas のメタ情報 (_meta キー) からタイルサイズと atlas 幅を取得
+      let blockTileSize = 64
+      let blockAtlasW = 0
+      if (blocksRes.status === 'fulfilled') {
+        const meta = (blocksRes.value as Record<string, unknown>)['_meta'] as { atlasW: number; tileSize: number } | undefined
+        if (meta) { blockTileSize = meta.tileSize; blockAtlasW = meta.atlasW }
+      }
+
+      return { coords, itemsSize, blockTileSize, blockAtlasW }
+    },
+    staleTime: Infinity,
+    gcTime: Infinity,
+  })
 }
 
 /** アドバンスメント名を lang ファイルから解決する */
