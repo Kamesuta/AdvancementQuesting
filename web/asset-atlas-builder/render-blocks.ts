@@ -9,7 +9,7 @@
  * 前提:
  *   - WSL (Ubuntu 等) がインストールされていること
  *   - WSL 内に xvfb が入っていること (sudo apt install xvfb)
- *   - Minecraft client.jar を scripts/render-blocks-cache/minecraft.jar に配置するか
+ *   - Minecraft client.jar を asset-atlas-builder/render-blocks-cache/minecraft.jar に配置するか
  *     MC_JAR 環境変数で指定すること（未指定の場合は自動ダウンロード）
  *
  * 使用方法:
@@ -204,7 +204,7 @@ async function main() {
 
   if (existsSync(cachedOutDir) && readdirSync(cachedOutDir).length > 0) {
     console.log(`\n  レンダリングキャッシュ使用: ${cachedOutDir}`)
-    console.log('  再レンダリングする場合は scripts/render-blocks-cache/rendered/ を削除してください')
+    console.log('  再レンダリングする場合は asset-atlas-builder/render-blocks-cache/rendered/ を削除してください')
     outDir = cachedOutDir
   } else {
     await downloadJar()

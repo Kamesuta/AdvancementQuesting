@@ -1,0 +1,16 @@
+{
+  "name": "asset-atlas-builder",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "download-assets": "tsx download-mc-assets.ts",
+    "render-blocks": "tsx render-blocks.ts",
+    "build": "npm run download-assets && npm run render-blocks"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.1",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}
