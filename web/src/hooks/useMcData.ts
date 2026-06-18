@@ -95,8 +95,10 @@ export function getAdvancementName(
   id: string,
 ): string {
   if (!lang) return id
+  // "adventure/adventuring_time" → "advancements.adventure.adventuring_time.title"
   // "minecraft:story/mine_wood" → "advancements.story.mine_wood.title"
-  const key = id.replace('minecraft:', 'advancements.').replace(/\//g, '.')
+  const normalized = id.replace('minecraft:', '')
+  const key = 'advancements.' + normalized.replace(/\//g, '.')
   return lang.ja[`${key}.title`] ?? lang.en[`${key}.title`] ?? id
 }
 
@@ -124,10 +126,12 @@ export function useMcAdvancements() {
 
   const advancements: McItemEntry[] | undefined =
     advQuery.data && langQuery.data
-      ? advQuery.data.map((id) => ({
-          id,
-          name: getAdvancementName(langQuery.data, id),
-        }))
+      ? advQuery.data
+          .filter((id) => !id.startsWith('recipes/') && !id.startsWith('minecraft:recipes/'))
+          .map((id) => ({
+            id,
+            name: getAdvancementName(langQuery.data, id),
+          }))
       : undefined
 
   return {
