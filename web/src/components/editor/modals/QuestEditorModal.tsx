@@ -283,14 +283,24 @@ const isMobile = useIsMobile()
             >
               <ItemIcon type={node.icon} size={28} />
             </div>
-            <input
-              type="text"
-              value={node.title}
-              onChange={(e) => updateNode({ ...node, title: e.target.value })}
-              readOnly={readOnly}
-              className={`flex-1 bg-transparent text-xl font-bold border-b border-transparent outline-none placeholder-gray-500 min-w-0 ${readOnly ? 'cursor-default' : 'focus:border-blue-400'}`}
-              placeholder="クエストのタイトル"
-            />
+            <div className="flex-1 flex flex-col min-w-0">
+              <input
+                type="text"
+                value={node.title}
+                onChange={(e) => updateNode({ ...node, title: e.target.value })}
+                readOnly={readOnly}
+                className={`w-full bg-transparent text-xl font-bold border-b border-transparent outline-none placeholder-gray-500 ${readOnly ? 'cursor-default' : 'focus:border-blue-400'}`}
+                placeholder="クエストのタイトル"
+              />
+              <input
+                type="text"
+                value={node.subtitle}
+                onChange={(e) => updateNode({ ...node, subtitle: e.target.value })}
+                readOnly={readOnly}
+                className={`w-full bg-transparent text-xs text-gray-400 italic outline-none placeholder-gray-600 ${readOnly ? 'cursor-default' : 'focus:border-gray-500'}`}
+                placeholder="補足説明..."
+              />
+            </div>
             <button onClick={close} aria-label="閉じる" className="text-gray-400 p-1 shrink-0">
               <X size={24} />
             </button>
@@ -382,14 +392,6 @@ const isMobile = useIsMobile()
           </div>
           <div className="flex flex-col gap-2">
             <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">詳細</div>
-            <input
-              type="text"
-              value={node.subtitle}
-              onChange={(e) => updateNode({ ...node, subtitle: e.target.value })}
-              readOnly={readOnly}
-              className={`w-full bg-transparent text-gray-400 text-sm italic text-center outline-none border-b border-gray-600 placeholder-gray-600 pb-1 ${readOnly ? 'cursor-default' : 'focus:border-gray-400'}`}
-              placeholder="補足説明 (例: 掘って、切って、壊して！)"
-            />
             <textarea
               value={node.description}
               onChange={(e) => updateNode({ ...node, description: e.target.value })}
@@ -422,14 +424,24 @@ const isMobile = useIsMobile()
             >
               <ItemIcon type={node.icon} size={32} />
             </div>
-            <input
-              type="text"
-              value={node.title}
-              onChange={(e) => updateNode({ ...node, title: e.target.value })}
-              readOnly={readOnly}
-              className={`flex-1 bg-transparent text-2xl font-bold border-b border-transparent outline-none placeholder-gray-500 min-w-0 ${readOnly ? 'cursor-default' : 'focus:border-blue-400'}`}
-              placeholder="クエストのタイトル"
-            />
+            <div className="flex-1 flex flex-col min-w-0">
+              <input
+                type="text"
+                value={node.title}
+                onChange={(e) => updateNode({ ...node, title: e.target.value })}
+                readOnly={readOnly}
+                className={`w-full bg-transparent text-2xl font-bold border-b border-transparent outline-none placeholder-gray-500 ${readOnly ? 'cursor-default' : 'focus:border-blue-400'}`}
+                placeholder="クエストのタイトル"
+              />
+              <input
+                type="text"
+                value={node.subtitle}
+                onChange={(e) => updateNode({ ...node, subtitle: e.target.value })}
+                readOnly={readOnly}
+                className={`w-full bg-transparent text-sm text-gray-400 italic outline-none placeholder-gray-600 ${readOnly ? 'cursor-default' : 'focus:border-gray-500'}`}
+                placeholder="補足説明..."
+              />
+            </div>
             <button onClick={close} aria-label="閉じる" className="text-gray-400 hover:text-red-400 shrink-0">
               <X size={28} />
             </button>
@@ -515,15 +527,8 @@ const isMobile = useIsMobile()
           <RewardList />
         </div>
 
-        {/* 下段: サブタイトル + 説明文 */}
+        {/* 下段: 説明文 */}
         <div className="flex flex-col gap-3 flex-1">
-          <input
-            type="text"
-            value={node.subtitle}
-            onChange={(e) => updateNode({ ...node, subtitle: e.target.value })}
-            className="w-full bg-transparent text-gray-400 text-sm italic text-center outline-none border-b border-transparent focus:border-gray-600 placeholder-gray-600"
-            placeholder="補足説明を入力 (例: 掘って、切って、壊して！)"
-          />
           <textarea
             value={node.description}
             onChange={(e) => updateNode({ ...node, description: e.target.value })}
