@@ -17,8 +17,10 @@ import { createBot, quitBot, waitForChat, apiRequest, rcon } from './helpers.js'
 import type { Bot } from 'mineflayer'
 
 const BOT_NAME = 'AdvBot' + Math.floor(Math.random() * 100000)
-// テストに使う advancement (Paper 1.21 で確実に存在するもの)
-const TEST_ADV = 'minecraft:story/mine_stone'
+// テストに使う advancement (フロントエンドが保存する "名前空間なし" 形式)
+const TEST_ADV = 'story/mine_stone'
+// RCON コマンド用 (minecraft: プレフィックス付き)
+const TEST_ADV_MC = 'minecraft:story/mine_stone'
 
 interface ConditionProgress {
   conditionId: string
@@ -75,7 +77,7 @@ describe('advancement 条件達成', () => {
     console.log(`advancementテストクエスト作成: id=${questId}, advancement=${TEST_ADV}`)
 
     // 前回の advancement を revoke してリセット
-    await rcon(`advancement revoke ${BOT_NAME} only ${TEST_ADV}`).catch(() => {})
+    await rcon(`advancement revoke ${BOT_NAME} only ${TEST_ADV_MC}`).catch(() => {})
     await new Promise(r => setTimeout(r, 500))
   })
 
@@ -95,7 +97,7 @@ describe('advancement 条件達成', () => {
     ).catch(() => null)
 
     // RCON で advancement を付与
-    const result = await rcon(`advancement grant ${BOT_NAME} only ${TEST_ADV}`)
+    const result = await rcon(`advancement grant ${BOT_NAME} only ${TEST_ADV_MC}`)
     console.log('advancement grant結果:', JSON.stringify(result))
     await new Promise(r => setTimeout(r, 2000))
 

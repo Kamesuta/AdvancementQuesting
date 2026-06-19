@@ -50,15 +50,22 @@ public class ProgressManager {
      * 一致する条件を持つクエストの進捗を更新し、全条件達成ならクエスト完了とする。
      */
     public void onAdvancement(String playerUuid, String advancementKey) {
+        // Bukkit は "minecraft:story/mine_stone" 形式で返すが、UIは "story/mine_stone" 形式で保存する
+        // 名前空間なし版も用意して両方にマッチするようにする
+        String advKeyNoNs = advancementKey.contains(":") ? advancementKey.substring(advancementKey.indexOf(':') + 1) : advancementKey;
         try {
             for (Quest quest : questManager.loadAll()) {
                 if (!"public".equals(quest.status)) continue;
                 if (quest.conditions == null) continue;
-                boolean matched = quest.conditions.stream().anyMatch(c ->
-                    "advancement".equals(c.get("type")) && advancementKey.equals(c.get("advancementId"))
-                );
+                boolean matched = quest.conditions.stream().anyMatch(c -> {
+                    if (!"advancement".equals(c.get("type"))) return false;
+                    String condAdvId = (String) c.get("advancementId");
+                    if (condAdvId == null) return false;
+                    String condNoNs = condAdvId.contains(":") ? condAdvId.substring(condAdvId.indexOf(':') + 1) : condAdvId;
+                    return advKeyNoNs.equals(condNoNs);
+                });
                 if (matched) {
-                    markConditionComplete(playerUuid, quest, "advancement", advancementKey);
+                    markConditionComplete(playerUuid, quest, "advancement", advKeyNoNs);
                 }
             }
         } catch (Exception e) {
@@ -288,7 +295,15 @@ public class ProgressManager {
         boolean changed = false;
         for (Map<String, Object> cond : quest.conditions) {
             if (!condType.equals(cond.get("type"))) continue;
-            if (!condValue.equals(cond.get("advancementId"))) continue;
+            // advancement は名前空間なし版で比較 (例: "story/mine_stone" と "minecraft:story/mine_stone" を同一視)
+            if ("advancement".equals(condType)) {
+                String condAdvId = (String) cond.get("advancementId");
+                if (condAdvId == null) continue;
+                String condNoNs = condAdvId.contains(":") ? condAdvId.substring(condAdvId.indexOf(':') + 1) : condAdvId;
+                if (!condValue.equals(condNoNs)) continue;
+            } else {
+                if (!condValue.equals(cond.get("advancementId"))) continue;
+            }
             String condId = (String) cond.get("id");
             // 既に完了済みならスキップ
             boolean alreadyDone = progress.stream()
