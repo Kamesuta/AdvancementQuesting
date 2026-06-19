@@ -213,10 +213,9 @@ function AppInner() {
     retry: false,
     enabled: !!localStorage.getItem('token'),
   })
-  // 編集者としてログインしたら自動で編集モード、ログアウトしたらプレイモードに戻す
+  // ログアウトしたらプレイモードに戻す (editor ログインでも自動切替しない)
   useEffect(() => {
-    if (meForSse?.role === 'editor') setViewMode('edit')
-    else if (!meForSse) setViewMode('play')
+    if (!meForSse) setViewMode('play')
   }, [meForSse?.role])
   useQuestNotifications(
     { onQuestComplete: handleQuestComplete, onProgressUpdate: handleProgressUpdate, onRepeatReset: handleRepeatReset },

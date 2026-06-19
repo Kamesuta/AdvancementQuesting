@@ -261,9 +261,7 @@ test('エッジ保存: 依存関係を保存してリロード後も保持され
   await page.getByText('💾 保存').click()
   await expect(page.getByText('保存しました')).toBeVisible({ timeout: 5000 })
 
-  await page.request.post(`${MOCK}/api/auth/quick`, { data: { token: 'demo-editor-token' } })
-  await page.reload()
-  await expect(loggedInBtn(page)).toBeVisible({ timeout: 8000 })
+  await loginAs(page, 'demo-editor-token')
 
   // リロード後もエッジ数が同じであること
   await expect.poll(

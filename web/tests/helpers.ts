@@ -15,8 +15,8 @@ export async function loginAs(page: Page, token: 'demo-editor-token' | 'demo-pla
   await page.reload()
   await expect(loggedInBtn(page)).toBeVisible({ timeout: 8000 })
   if (token === 'demo-editor-token') {
-    const editBtn = page.getByTitle('編集モード')
-    if (await editBtn.isVisible()) await editBtn.click()
+    await page.getByTitle('編集モード').waitFor({ state: 'visible', timeout: 5000 })
+    await page.getByTitle('編集モード').click()
   }
 }
 
