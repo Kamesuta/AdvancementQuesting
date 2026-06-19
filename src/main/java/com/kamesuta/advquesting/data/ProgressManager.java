@@ -15,8 +15,10 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 
 /**
@@ -239,6 +241,119 @@ public class ProgressManager {
         return true;
     }
 
+    /** 納品結果: conditionId → 納品数 */
+    public record DeliveryResult(Map<String, Integer> delivered, Map<String, Integer> failed) {}
+
+    /**
+     * WebUI から「納品する」を押したときに呼ぶ。
+     * delivery 条件ごとにプレイヤーのインベントリからアイテムを消費し、進捗を更新する。
+     * Javalin スレッドから呼ばれるため、Bukkit API は CompletableFuture でメインスレッドに委譲する。
+     */
+    public DeliveryResult deliverItems(String playerUuid, int questId) throws Exception {
+        Quest quest = questManager.findById(questId);
+        if (quest == null || quest.conditions == null) return new DeliveryResult(Map.of(), Map.of());
+
+        // delivery 条件のみ抽出
+        List<Map<String, Object>> deliveryConds = quest.conditions.stream()
+            .filter(c -> "delivery".equals(c.get("type")))
+            .toList();
+        if (deliveryConds.isEmpty()) return new DeliveryResult(Map.of(), Map.of());
+
+        Player player = Bukkit.getPlayer(java.util.UUID.fromString(playerUuid));
+        if (player == null) return new DeliveryResult(Map.of(), Map.of());
+
+        // 既存進捗を読む
+        ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, questId);
+        List<Map<String, Object>> progress = record == null
+            ? new ArrayList<>()
+            : MAPPER.readValue(record.progress(), LIST_MAP_TYPE);
+
+        Map<String, Integer> delivered = new HashMap<>();
+        Map<String, Integer> failed = new HashMap<>();
+
+        // メインスレッドでインベントリ操作
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            try {
+                for (Map<String, Object> cond : deliveryConds) {
+                    String condId = (String) cond.get("id");
+                    if (condId == null) continue;
+
+                    // 既に完了済みならスキップ
+                    boolean alreadyDone = progress.stream()
+                        .anyMatch(p -> condId.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));
+                    if (alreadyDone) continue;
+
+                    String itemType = (String) cond.getOrDefault("itemType", "stone");
+                    int required = ((Number) cond.getOrDefault("count", 1)).intValue();
+
+                    // 現在の納品済み数
+                    Map<String, Object> existing = progress.stream()
+                        .filter(p -> condId.equals(p.get("conditionId")))
+                        .findFirst().orElse(null);
+                    int alreadyDelivered = existing == null ? 0 : ((Number) existing.getOrDefault("current", 0)).intValue();
+                    int stillNeeded = required - alreadyDelivered;
+                    if (stillNeeded <= 0) continue;
+
+                    // itemType の名前空間を除去して Material を解決
+                    String matName = itemType.contains(":")
+                        ? itemType.substring(itemType.indexOf(':') + 1).toUpperCase()
+                        : itemType.toUpperCase();
+                    org.bukkit.Material mat = org.bukkit.Material.matchMaterial(matName);
+                    if (mat == null) { failed.put(condId, stillNeeded); continue; }
+
+                    // インベントリから持っている数を数える
+                    int haveCount = 0;
+                    for (org.bukkit.inventory.ItemStack slot : player.getInventory().getContents()) {
+                        if (slot != null && slot.getType() == mat) haveCount += slot.getAmount();
+                    }
+                    if (haveCount == 0) { failed.put(condId, stillNeeded); continue; }
+
+                    // 実際に消費する数 (持っている数と必要数の小さい方)
+                    int toConsume = Math.min(haveCount, stillNeeded);
+                    org.bukkit.inventory.ItemStack toRemove = new org.bukkit.inventory.ItemStack(mat, toConsume);
+                    player.getInventory().removeItem(toRemove);
+                    player.updateInventory();
+
+                    int newTotal = alreadyDelivered + toConsume;
+                    boolean nowDone = newTotal >= required;
+                    progress.removeIf(p -> condId.equals(p.get("conditionId")));
+                    progress.add(Map.of("conditionId", condId, "current", newTotal, "required", required, "completed", nowDone));
+                    delivered.put(condId, toConsume);
+                }
+                future.complete(null);
+            } catch (Exception e) {
+                future.completeExceptionally(e);
+            }
+        });
+
+        try {
+            future.get(5, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.warning("deliverItems error: " + e.getMessage());
+            return new DeliveryResult(Map.of(), Map.of());
+        }
+
+        if (delivered.isEmpty()) return new DeliveryResult(delivered, failed);
+
+        // delivery を含む全条件を確認 (isAllConditionsMet は delivery をスキップするため全条件版を使う)
+        boolean allDone = isAllConditionsMetIncludingCheckmarks(quest, progress);
+        String completedAt = allDone ? Instant.now().toString() : null;
+        try {
+            progressDao.upsertProgress(playerUuid, questId, MAPPER.writeValueAsString(progress), allDone, completedAt);
+        } catch (Exception e) {
+            log.warning("deliverItems upsert error: " + e.getMessage());
+        }
+
+        if (allDone) {
+            notifyQuestComplete(playerUuid, quest);
+        } else if (notificationRoutes != null) {
+            notificationRoutes.sendProgressUpdate(playerUuid, questId, false);
+        }
+
+        return new DeliveryResult(delivered, failed);
+    }
+
     /**
      * クエストの完了状態を管理コマンドで強制設定する。
      * 完了にした場合は達成演出付きで通知、未完了に戻した場合は進捗の再取得のみ通知する。
@@ -416,8 +531,9 @@ public class ProgressManager {
     private boolean isAllConditionsMet(Quest quest, List<Map<String, Object>> progress) {
         if (quest.conditions == null || quest.conditions.isEmpty()) return false;
         for (Map<String, Object> cond : quest.conditions) {
-            // checkmark 型は手動確認なので自動達成しない
-            if ("checkmark".equals(cond.get("type"))) continue;
+            // checkmark / delivery 型はWebUIから手動操作するので自動達成しない
+            String condType = (String) cond.get("type");
+            if ("checkmark".equals(condType) || "delivery".equals(condType)) continue;
             String condId = (String) cond.get("id");
             boolean done = progress.stream()
                 .anyMatch(p -> condId.equals(p.get("conditionId")) && Boolean.TRUE.equals(p.get("completed")));

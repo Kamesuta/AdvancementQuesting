@@ -6,6 +6,7 @@ import type { EditorNode, EditorEdge } from './types.js'
 export const TASK_TYPES = [
   { id: 'advancement', label: '進捗',     icon: '🏆' },
   { id: 'item',        label: 'アイテム', icon: '📦' },
+  { id: 'delivery',    label: '納品',     icon: '🎁' },
   { id: 'stat',        label: '統計',     icon: '📊' },
   { id: 'checkmark',   label: 'チェック', icon: '✅' },
   { id: 'location',    label: '座標',     icon: '📍' },

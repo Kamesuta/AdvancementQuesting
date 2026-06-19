@@ -24,7 +24,7 @@ export function getDisplayText(
   const prefix = def?.label ?? ''
 
   let detail: string
-  if (item.type === 'item') {
+  if (item.type === 'item' || item.type === 'delivery') {
     const itemId = item.itemType ?? 'stone'
     const count = (item as any).count ?? 1
     const name = item.value || getItemName(lang, itemId)

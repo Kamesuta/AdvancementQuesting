@@ -42,6 +42,7 @@ function questToNode(q: Quest): EditorNode {
       value: (c as any).label ?? (c as any).value ?? '',
       ...(c.type === 'advancement' ? { advancementId: c.advancementId ?? '' } : {}),
       ...(c.type === 'item' ? { itemType: c.itemType ?? 'stone', count: c.count ?? 1, ...(c.nbt ? { nbt: c.nbt } : {}), ...(c.displayName ? { displayName: c.displayName } : {}) } : {}),
+      ...(c.type === 'delivery' ? { itemType: (c as any).itemType ?? 'stone', count: (c as any).count ?? 1, ...((c as any).nbt ? { nbt: (c as any).nbt } : {}), ...((c as any).displayName ? { displayName: (c as any).displayName } : {}) } : {}),
       ...(c.type === 'stat' ? { statType: (c as any).statType ?? '', statId: (c as any).statId ?? '', count: (c as any).count ?? 1 } : {}),
       ...(c.type === 'location' ? { locX: (c as any).x ?? 0, locY: (c as any).y ?? 0, locZ: (c as any).z ?? 0, dimension: (c as any).dimension ?? 'overworld', radius: (c as any).radius ?? 10 } : {}),
       ...(c.type === 'scoreboard' ? { objective: (c as any).objective ?? '', score: (c as any).score ?? 1 } : {}),
@@ -62,6 +63,7 @@ function nodeToApiBody(node: EditorNode, edgeList: EditorEdge[]) {
     const ta = t as any
     if (t.type === 'advancement') return { id: t.id, type: 'advancement' as const, advancementId: ta.advancementId ?? t.value ?? '' }
     if (t.type === 'item') return { id: t.id, type: 'item' as const, itemType: ta.itemType ?? 'stone', count: ta.count ?? 1, ...(ta.nbt ? { nbt: ta.nbt } : {}), ...(ta.displayName ? { displayName: ta.displayName } : {}) }
+    if (t.type === 'delivery') return { id: t.id, type: 'delivery' as const, itemType: ta.itemType ?? 'stone', count: ta.count ?? 1, ...(ta.nbt ? { nbt: ta.nbt } : {}), ...(ta.displayName ? { displayName: ta.displayName } : {}) }
     if (t.type === 'checkmark') return { id: t.id, type: 'checkmark' as const, label: ta.label ?? t.value ?? '' }
     if (t.type === 'stat') return { id: t.id, type: 'stat' as const, statType: ta.statType ?? '', statId: ta.statId ?? '', count: ta.count ?? 1 }
     if (t.type === 'location') return { id: t.id, type: 'location' as const, x: ta.locX ?? 0, y: ta.locY ?? 0, z: ta.locZ ?? 0, dimension: ta.dimension ?? 'overworld', radius: ta.radius ?? 10 }
@@ -1306,6 +1308,22 @@ export default function EditorPage() {
               await progressApi.completeCondition(editingNodeId!, conditionId)
               await queryClient.invalidateQueries({ queryKey: ['progress'] })
             } : undefined}
+            onDeliver={(() => {
+              const node = editingNodeId ? nodes.find((n) => n.id === editingNodeId) : null
+              const hasDelivery = node?.tasks?.some((t) => t.type === 'delivery')
+              const p = progressData?.find((pr) => String(pr.questId) === editingNodeId)
+              if (!hasDelivery || !isReadOnlyNode(editingNodeId!) || !me || p?.completed) return undefined
+              return async () => {
+                const result = await progressApi.deliver(editingNodeId!)
+                await queryClient.invalidateQueries({ queryKey: ['progress'] })
+                const deliveredCount = Object.keys(result.delivered ?? {}).length
+                if (deliveredCount > 0) {
+                  showToast('納品しました！')
+                } else {
+                  showToast('納品できるアイテムがありませんでした')
+                }
+              }
+            })()}
           />
         )}
 

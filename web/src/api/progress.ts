@@ -11,4 +11,7 @@ export const progressApi = {
 
   completeCondition: (questId: string, conditionId: string) =>
     api.post<{ status: string }>(`/progress/${questId}/condition/${conditionId}/complete`),
+
+  deliver: (questId: string) =>
+    api.post<{ delivered: Record<string, number>; failed: Record<string, number> }>(`/progress/${questId}/deliver`),
 }

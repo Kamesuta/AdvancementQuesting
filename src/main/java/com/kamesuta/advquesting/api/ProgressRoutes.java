@@ -70,6 +70,21 @@ public class ProgressRoutes {
             }
         });
 
+        // POST /api/progress/:questId/deliver — 納品 (インベントリからアイテム消費して進捗更新)
+        app.post("/api/progress/{questId}/deliver", ctx -> {
+            SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
+            int questId = parseId(ctx.pathParam("questId"));
+            try {
+                ProgressManager.DeliveryResult result = progressManager.deliverItems(session.playerUuid(), questId);
+                ctx.json(Map.of(
+                    "delivered", result.delivered(),
+                    "failed", result.failed()
+                ));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+
         // POST /api/progress/:questId/claim — 報酬受け取り
         app.post("/api/progress/{questId}/claim", ctx -> {
             SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);

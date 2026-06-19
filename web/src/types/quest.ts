@@ -1,6 +1,6 @@
 export type QuestStatus = 'draft' | 'proposed' | 'public' | 'hidden'
 
-export type ConditionType = 'advancement' | 'item' | 'checkmark' | 'stat' | 'location' | 'scoreboard'
+export type ConditionType = 'advancement' | 'item' | 'delivery' | 'checkmark' | 'stat' | 'location' | 'scoreboard'
 
 export interface AdvancementCondition {
   id?: string
@@ -13,6 +13,15 @@ export interface AdvancementCondition {
 export interface ItemCondition {
   id?: string
   type: 'item'
+  itemType: string
+  count?: number
+  nbt?: string
+  displayName?: string
+}
+
+export interface DeliveryCondition {
+  id?: string
+  type: 'delivery'
   itemType: string
   count?: number
   nbt?: string
@@ -53,7 +62,7 @@ export interface ScoreboardCondition {
   score: number
 }
 
-export type Condition = AdvancementCondition | ItemCondition | CheckmarkCondition | StatCondition | LocationCondition | ScoreboardCondition
+export type Condition = AdvancementCondition | ItemCondition | DeliveryCondition | CheckmarkCondition | StatCondition | LocationCondition | ScoreboardCondition
 
 export type RewardType = 'item' | 'command' | 'experience' | 'permission' | 'money' | 'point'
 

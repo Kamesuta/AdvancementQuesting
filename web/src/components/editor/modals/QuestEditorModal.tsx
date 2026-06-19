@@ -33,6 +33,8 @@ interface QuestEditorModalProps {
   claimReward?: () => Promise<void>
   /** プレイモードでチェックマーク条件を完了する。conditionId を渡す */
   onCheckmarkComplete?: (conditionId: string) => Promise<void>
+  /** プレイモードで納品ボタンを押す。インベントリからアイテムを消費して進捗を更新する */
+  onDeliver?: () => Promise<void>
 }
 
 /**
@@ -51,10 +53,12 @@ export function QuestEditorModal({
   conditionProgress,
   claimReward,
   onCheckmarkComplete,
+  onDeliver,
 }: QuestEditorModalProps) {
   const [showTaskMenu, setShowTaskMenu] = useState(false)
   const [showRewardMenu, setShowRewardMenu] = useState(false)
   const [claiming, setClaiming] = useState(false)
+  const [delivering, setDelivering] = useState(false)
   const [checkingConditionId, setCheckingConditionId] = useState<string | null>(null)
 const isMobile = useIsMobile()
   const { data: lang } = useMcLang()
@@ -64,7 +68,7 @@ const isMobile = useIsMobile()
       id: `t-${Date.now()}`,
       type,
       value: type === 'checkmark' ? '確認する' : '',
-      ...(type === 'item' ? { itemType: 'stone' } : {}),
+      ...(type === 'item' || type === 'delivery' ? { itemType: 'stone', count: 1 } : {}),
     }
     updateNode({ ...node, tasks: [...(node.tasks ?? []), newTask] })
     setShowTaskMenu(false)
@@ -134,7 +138,7 @@ const isMobile = useIsMobile()
               onClick={readOnly ? undefined : () => openTaskRewardEditor({ nodeId: node.id, category: 'task', itemId: task.id })}
             >
               <div className="shrink-0">
-                {task.type === 'item' ? (
+                {(task.type === 'item' || task.type === 'delivery') ? (
                   <ItemIcon type={task.itemType ?? 'stone'} size={24} />
                 ) : (
                   <span className="text-xl w-6 text-center block">
@@ -158,7 +162,7 @@ const isMobile = useIsMobile()
                   </div>
                 )}
               </div>
-              {/* 達成チェックマーク / プレイモードのチェックボタン */}
+              {/* 達成チェックマーク / プレイモードのチェック・納品ボタン */}
               {isDone ? (
                 <div
                   className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center"
@@ -167,7 +171,7 @@ const isMobile = useIsMobile()
                 >
                   ✓
                 </div>
-              ) : (readOnly && task.type === 'checkmark' && onCheckmarkComplete) && (
+              ) : (readOnly && task.type === 'checkmark' && onCheckmarkComplete) ? (
                 <button
                   onClick={async (e) => {
                     e.stopPropagation()
@@ -188,7 +192,9 @@ const isMobile = useIsMobile()
                 >
                   {checkingConditionId === task.id ? '処理中...' : '了解'}
                 </button>
-              )}
+              ) : (readOnly && task.type === 'delivery') ? (
+                <span className="shrink-0 text-xs text-orange-300 font-bold">🎁 納品</span>
+              ) : null}
               {!readOnly && (
                 <button
                   onClick={(e) => { e.stopPropagation(); removeTask(task.id) }}
@@ -309,9 +315,27 @@ const isMobile = useIsMobile()
           {node.creatorName && (
             <div className="text-xs text-gray-400">✨ {node.creatorName} 作成</div>
           )}
-          {/* 報酬受取ボタン / いいね・承認/却下ボタン */}
-          {(claimReward || proposalMeta) && (
+          {/* 納品ボタン / 報酬受取ボタン / いいね・承認/却下ボタン */}
+          {(onDeliver || claimReward || proposalMeta) && (
             <div className="flex items-center gap-2 flex-wrap">
+              {onDeliver && (
+                <button
+                  onClick={async () => { setDelivering(true); try { await onDeliver() } finally { setDelivering(false) } }}
+                  disabled={delivering}
+                  className="text-sm px-4 py-1.5 border-2 font-bold mr-auto"
+                  style={{
+                    color: '#1a0a00',
+                    backgroundColor: delivering ? '#9B7B3B' : '#E8A830',
+                    borderTopColor: '#F5C842',
+                    borderLeftColor: '#F5C842',
+                    borderBottomColor: '#8B6020',
+                    borderRightColor: '#8B6020',
+                    cursor: delivering ? 'wait' : 'pointer',
+                  }}
+                >
+                  {delivering ? '納品中...' : '🎁 まとめて納品する'}
+                </button>
+              )}
               {claimReward && (
                 <button
                   onClick={async () => { setClaiming(true); try { await claimReward() } finally { setClaiming(false) } }}
