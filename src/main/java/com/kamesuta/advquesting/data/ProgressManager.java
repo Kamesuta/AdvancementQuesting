@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kamesuta.advquesting.api.NotificationRoutes;
 import com.kamesuta.advquesting.api.PlayerRoutes;
+import com.kamesuta.advquesting.db.CompletionDao;
 import com.kamesuta.advquesting.db.ProgressDao;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -33,13 +34,16 @@ public class ProgressManager {
     private final JavaPlugin plugin;
     private final QuestManager questManager;
     private final ProgressDao progressDao;
+    private final CompletionDao completionDao;
     private final Logger log;
     private NotificationRoutes notificationRoutes;
 
-    public ProgressManager(JavaPlugin plugin, QuestManager questManager, ProgressDao progressDao) {
+    public ProgressManager(JavaPlugin plugin, QuestManager questManager, ProgressDao progressDao,
+                           CompletionDao completionDao) {
         this.plugin = plugin;
         this.questManager = questManager;
         this.progressDao = progressDao;
+        this.completionDao = completionDao;
         this.log = plugin.getLogger();
     }
 
@@ -655,6 +659,13 @@ public class ProgressManager {
             log.warning("incrementCompletedCount error: " + e.getMessage());
         }
 
+        // クリアログを追記 (ランキングの真実のソース。繰り返しは完了のたびに積まれる)
+        try {
+            completionDao.insert(playerUuid, playerUuidToName(playerUuid), quest.id, Instant.now().toString());
+        } catch (Exception e) {
+            log.warning("completion log insert error: " + e.getMessage());
+        }
+
         // SSE でブラウザに通知 (Javalin スレッドから呼べる)
         if (notificationRoutes != null) {
             notificationRoutes.sendQuestComplete(playerUuid, quest.id, quest.title,
@@ -695,8 +706,12 @@ public class ProgressManager {
     }
 
     private String playerUuidToName(String playerUuid) {
-        Player online = Bukkit.getPlayer(java.util.UUID.fromString(playerUuid));
+        java.util.UUID uuid = java.util.UUID.fromString(playerUuid);
+        Player online = Bukkit.getPlayer(uuid);
         if (online != null) return online.getName();
+        // オフライン: キャッシュ済みの名前を解決 (ランキング表示用)
+        String offlineName = Bukkit.getOfflinePlayer(uuid).getName();
+        if (offlineName != null) return offlineName;
         return playerUuid;
     }
 

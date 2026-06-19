@@ -6,9 +6,10 @@ import { db } from './db/client.js'
 
 import authRoutes from './routes/auth.js'
 import questRoutes from './routes/quests.js'
+import rankingRoutes from './routes/ranking.js'
 import progressRoutes from './routes/progress.js'
 import proposalRoutes from './routes/proposals.js'
-import { playerSessions, authCodes, questProposals, proposalVotes, quests, playerProgress } from './db/schema.js'
+import { playerSessions, authCodes, questProposals, proposalVotes, quests, playerProgress, questCompletions } from './db/schema.js'
 import { eq } from 'drizzle-orm'
 
 config()
@@ -23,6 +24,7 @@ app.use(cors({ origin: true, credentials: true }))
 app.use(express.json())
 
 app.use('/api/auth', authRoutes)
+app.use('/api/quests', rankingRoutes)
 app.use('/api/quests', questRoutes)
 app.use('/api/progress', progressRoutes)
 app.use('/api/proposals', proposalRoutes)
@@ -164,6 +166,29 @@ app.post('/api/test/set-condition-progress', express.json(), async (req, res) =>
 // テスト用: 進捗をすべて削除
 app.post('/api/test/reset-progress', async (_req, res) => {
   await db.delete(playerProgress)
+  res.json({ ok: true })
+})
+
+// テスト用: クリアログを投入する (ランキング検証用)
+// body: { questId, entries: [{ playerUuid, playerName, completedAt }] } または単体
+app.post('/api/test/add-completion', async (req, res) => {
+  const { questId, entries, playerUuid, playerName, completedAt } = req.body as {
+    questId: number
+    entries?: Array<{ playerUuid: string; playerName: string; completedAt: string }>
+    playerUuid?: string; playerName?: string; completedAt?: string
+  }
+  const list = entries ?? [{ playerUuid: playerUuid!, playerName: playerName!, completedAt: completedAt! }]
+  for (const e of list) {
+    await db.insert(questCompletions).values({
+      questId, playerUuid: e.playerUuid, playerName: e.playerName, completedAt: e.completedAt,
+    })
+  }
+  res.json({ ok: true, inserted: list.length })
+})
+
+// テスト用: クリアログをすべて削除
+app.post('/api/test/reset-completions', async (_req, res) => {
+  await db.delete(questCompletions)
   res.json({ ok: true })
 })
 

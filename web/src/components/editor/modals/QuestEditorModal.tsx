@@ -8,6 +8,7 @@ import { useIsMobile } from '@/hooks/useIsMobile.js'
 import { useMcLang } from '@/hooks/useMcData.js'
 import type { ConditionProgress } from '@/types/progress.js'
 import { nextFire, cooldownNextFire, formatRevivePreview } from '../CronParser.js'
+import { QuestRankingSection } from '@/components/ranking/QuestRankingSection.js'
 
 interface ProposalMeta {
   proposalId: number
@@ -73,6 +74,13 @@ export function QuestEditorModal({
   // 繰り返し設定
   const repeat = node.repeat
   const isRepeatQuest = repeat && repeat.type !== 'none'
+
+  // ランキング: 保存済み (数値ID) クエストのみ表示する。
+  // 新規作成中ノード (node-<timestamp> 等) は数値にならないので非表示。
+  const rankingQuestId = /^\d+$/.test(node.id) ? parseInt(node.id, 10) : null
+  const rankingSection = rankingQuestId != null
+    ? <QuestRankingSection questId={rankingQuestId} repeatable={!!isRepeatQuest} />
+    : null
   const repeatCountdown = (() => {
     if (!repeat || repeat.type === 'none' || repeat.type === 'unlimited') return null
     if (repeat.type === 'cooldown' && repeat.cooldownHours && completedAt) {
@@ -567,6 +575,12 @@ export function QuestEditorModal({
             />
           </div>
           {!readOnly && repeatEditor}
+          {rankingSection && (
+            <div className="flex flex-col gap-2">
+              <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">ランキング</div>
+              {rankingSection}
+            </div>
+          )}
         </div>
       </div>
     )
@@ -712,6 +726,12 @@ export function QuestEditorModal({
             placeholder="クエストの詳細な説明を入力してください..."
           />
           {!readOnly && repeatEditor}
+          {rankingSection && (
+            <div className="flex flex-col gap-2">
+              <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">ランキング</div>
+              {rankingSection}
+            </div>
+          )}
         </div>
       </div>
     </div>

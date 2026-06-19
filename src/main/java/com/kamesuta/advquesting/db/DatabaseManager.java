@@ -76,6 +76,18 @@ public class DatabaseManager {
             // マイグレーション: 繰り返し対応カラムの追加
             try { st.execute("ALTER TABLE player_progress ADD COLUMN completed_count INTEGER NOT NULL DEFAULT 0"); } catch (SQLException ignored) {}
             try { st.execute("ALTER TABLE player_progress ADD COLUMN pending_rewards INTEGER NOT NULL DEFAULT 0"); } catch (SQLException ignored) {}
+            // クリアログ (1クリア=1レコード)。ランキングの真実のソース。
+            st.execute("""
+                CREATE TABLE IF NOT EXISTS quest_completions (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    player_uuid  TEXT NOT NULL,
+                    player_name  TEXT NOT NULL,
+                    quest_id     INTEGER NOT NULL,
+                    completed_at TEXT NOT NULL
+                )""");
+            st.execute("CREATE INDEX IF NOT EXISTS idx_completions_quest ON quest_completions (quest_id)");
+            st.execute("CREATE INDEX IF NOT EXISTS idx_completions_quest_time ON quest_completions (quest_id, completed_at)");
+            st.execute("CREATE INDEX IF NOT EXISTS idx_completions_quest_player ON quest_completions (quest_id, player_uuid)");
         }
     }
 

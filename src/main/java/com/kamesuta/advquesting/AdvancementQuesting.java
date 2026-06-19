@@ -6,12 +6,14 @@ import com.kamesuta.advquesting.api.PlayerRoutes;
 import com.kamesuta.advquesting.api.ProposalRoutes;
 import com.kamesuta.advquesting.api.ProgressRoutes;
 import com.kamesuta.advquesting.api.QuestRoutes;
+import com.kamesuta.advquesting.api.RankingRoutes;
 import com.kamesuta.advquesting.command.QuestCommand;
 import com.kamesuta.advquesting.command.QuestEditCommand;
 import com.kamesuta.advquesting.data.ProgressManager;
 import com.kamesuta.advquesting.data.QuestManager;
 import com.kamesuta.advquesting.data.RepeatScheduler;
 import com.kamesuta.advquesting.db.AuthCodeDao;
+import com.kamesuta.advquesting.db.CompletionDao;
 import com.kamesuta.advquesting.db.DatabaseManager;
 import com.kamesuta.advquesting.db.ProgressDao;
 import com.kamesuta.advquesting.db.ProposalDao;
@@ -51,9 +53,10 @@ public final class AdvancementQuesting extends JavaPlugin {
         SessionDao sessionDao = new SessionDao(db);
         AuthCodeDao authCodeDao = new AuthCodeDao(db, sessionDao);
         ProgressDao progressDao = new ProgressDao(db);
+        CompletionDao completionDao = new CompletionDao(db);
         ProposalDao proposalDao = new ProposalDao(db);
         QuestManager questManager = new QuestManager(getDataFolder());
-        ProgressManager progressManager = new ProgressManager(this, questManager, progressDao);
+        ProgressManager progressManager = new ProgressManager(this, questManager, progressDao, completionDao);
 
         int port = getConfig().getInt("web-port", 8080);
         String webUrl = getConfig().getString("web-url", "http://localhost:" + port);
@@ -76,6 +79,7 @@ public final class AdvancementQuesting extends JavaPlugin {
         new AuthRoutes(sessionDao, authCodeDao).register(app);
         new QuestRoutes(questManager, sessionDao).register(app);
         new ProgressRoutes(progressDao, progressManager, sessionDao).register(app);
+        new RankingRoutes(completionDao, sessionDao).register(app);
         new ProposalRoutes(proposalDao, questManager, sessionDao).register(app);
         new PlayerRoutes(this, sessionDao).register(app);
         notificationRoutes.register(app);

@@ -33,6 +33,15 @@ export const playerProgress = sqliteTable('player_progress', {
   uniqueIndex('player_quest_unique').on(t.playerUuid, t.questId),
 ])
 
+export const questCompletions = sqliteTable('quest_completions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  playerUuid: text('player_uuid').notNull(),
+  playerName: text('player_name').notNull(),
+  // 本番 (DatabaseManager) と同様に FK 制約は張らない (クリアログは追記専用)
+  questId: integer('quest_id').notNull(),
+  completedAt: text('completed_at').notNull(),
+})
+
 export const questProposals = sqliteTable('quest_proposals', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   questId: integer('quest_id').notNull().references(() => quests.id),

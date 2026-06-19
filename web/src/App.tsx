@@ -192,6 +192,8 @@ function AppInner() {
     setLastQuestComplete({ questId: event.questId, nonce })
     // 進捗データを再取得してノードの達成済み表示を更新
     queryClient.invalidateQueries({ queryKey: ['progress'] })
+    // ランキングも更新 (クリアログが増えたため)
+    queryClient.invalidateQueries({ queryKey: ['ranking'] })
   }, [queryClient])
 
   const dismissOverlay = useCallback(() => setQuestCompleteEvent(null), [])
@@ -204,6 +206,7 @@ function AppInner() {
   // 繰り返しクエストが復活したら進捗を再取得（残り時間・受取状態を更新）
   const handleRepeatReset = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['progress'] })
+    queryClient.invalidateQueries({ queryKey: ['ranking'] })
   }, [queryClient])
 
   // ログイン状態を監視 (ログイン後に SSE を張り直すため / 編集者ログイン時の viewMode 自動切替)
