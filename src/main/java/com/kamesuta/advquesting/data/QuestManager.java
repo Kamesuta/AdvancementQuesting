@@ -105,6 +105,8 @@ public class QuestManager {
             if (patch.subtitle != null)     existing.subtitle = patch.subtitle;
             if (patch.creatorName != null)  existing.creatorName = patch.creatorName;
             if (patch.creatorUuid != null)  existing.creatorUuid = patch.creatorUuid;
+            // repeat は null（なし）も含めて常に上書き
+            existing.repeat = patch.repeat;
             existing.updatedAt = Instant.now().toString();
             // タイトルが変わるとファイル名も変わる → 旧ファイル削除
             f.delete();

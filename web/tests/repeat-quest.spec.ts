@@ -81,6 +81,31 @@ test('RP-4: pendingRewards>1で受取ボタンに件数が表示される', asyn
   await expect(page.getByRole('button', { name: /報酬を受け取る.*×3/ })).toBeVisible()
 })
 
+test('RP-5b: 繰り返し設定を保存するとリロード後も設定が保持される (保存バグ回帰)', async ({ page }) => {
+  await loginAs(page, 'demo-editor-token')
+  await openQuestModal(page, '1')
+
+  // クールダウンを選択して設定
+  await page.getByRole('button', { name: 'クールダウン' }).click()
+  await expect(page.getByText('復活までの時間')).toBeVisible()
+
+  // 閉じて保存
+  await page.getByRole('button', { name: '閉じる' }).last().click()
+  await page.locator('#nav-save-btn').click()
+  await expect(page.locator('#nav-save-btn')).not.toBeDisabled()
+
+  // リロードして設定が残っているか確認
+  await page.reload()
+  await expect(page.locator('[data-node-id]').first()).toBeVisible({ timeout: 10000 })
+  await loginAs(page, 'demo-editor-token')
+  await openQuestModal(page, '1')
+
+  // クールダウンボタンがアクティブになっている
+  const cooldownBtn = page.getByRole('button', { name: 'クールダウン' })
+  await expect(cooldownBtn).toHaveClass(/bg-blue-600/)
+  await expect(page.getByText('復活までの時間')).toBeVisible()
+})
+
 test('RP-5: cron入力欄に連続入力してもフォーカスが外れない (再マウント回帰)', async ({ page }) => {
   await loginAs(page, 'demo-editor-token')
   await openQuestModal(page, '1')
