@@ -133,8 +133,8 @@ export function TaskRewardEditorModal({
   })()
 
   const taskSpecificField = (() => {
-    // ----- アイテム -----
-    if (item.type === 'item') {
+    // ----- アイテム / 納品 -----
+    if (item.type === 'item' || item.type === 'delivery') {
       const itemWithExtra = item as EditorTask & EditorReward
       const hasNbt = !!itemWithExtra.nbt
       const hasDisplayName = !!itemWithExtra.displayName
@@ -504,7 +504,7 @@ export function TaskRewardEditorModal({
   })()
 
   // 表示名フィールドが不要なタイプ
-  const noDisplayName = item.type === 'point' || item.type === 'advancement' || item.type === 'stat' || item.type === 'checkmark' || item.type === 'location'
+  const noDisplayName = item.type === 'point' || item.type === 'advancement' || item.type === 'stat' || item.type === 'checkmark' || item.type === 'location' || item.type === 'delivery'
 
   const inner = (
     <>
