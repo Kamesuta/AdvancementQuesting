@@ -10,6 +10,7 @@ import com.kamesuta.advquesting.command.QuestCommand;
 import com.kamesuta.advquesting.command.QuestEditCommand;
 import com.kamesuta.advquesting.data.ProgressManager;
 import com.kamesuta.advquesting.data.QuestManager;
+import com.kamesuta.advquesting.data.RepeatScheduler;
 import com.kamesuta.advquesting.db.AuthCodeDao;
 import com.kamesuta.advquesting.db.DatabaseManager;
 import com.kamesuta.advquesting.db.ProgressDao;
@@ -32,6 +33,7 @@ public final class AdvancementQuesting extends JavaPlugin {
     private Javalin app;
     private DatabaseManager db;
     private ScoreboardListener scoreboardListener;
+    private RepeatScheduler repeatScheduler;
 
     @Override
     public void onEnable() {
@@ -99,6 +101,9 @@ public final class AdvancementQuesting extends JavaPlugin {
         scoreboardListener = new ScoreboardListener(progressManager);
         scoreboardListener.start(this);
 
+        repeatScheduler = new RepeatScheduler(this, questManager, progressDao, notificationRoutes);
+        repeatScheduler.start();
+
         // コマンド登録
         QuestCommand questCommand = new QuestCommand(authCodeDao, webUrl, progressDao, progressManager, questManager);
         Objects.requireNonNull(getCommand("quest")).setExecutor(questCommand);
@@ -111,6 +116,7 @@ public final class AdvancementQuesting extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (repeatScheduler != null) repeatScheduler.stop();
         if (scoreboardListener != null) scoreboardListener.stop();
         if (app != null) app.stop();
         if (db != null) db.close();

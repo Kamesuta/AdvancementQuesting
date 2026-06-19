@@ -55,6 +55,7 @@ function questToNode(q: Quest): EditorNode {
       if (r.type === 'point') return { ...base, type: 'point', amount: r.amount }
       return { ...base, type: r.type }
     }),
+    repeat: q.repeat ? { type: q.repeat.type, cooldownHours: q.repeat.cooldownHours, cron: q.repeat.cron } : undefined,
   }
 }
 
@@ -89,6 +90,7 @@ function nodeToApiBody(node: EditorNode, edgeList: EditorEdge[]) {
       .filter((n) => !isNaN(n)),
     conditions,
     rewards,
+    repeat: node.repeat && node.repeat.type !== 'none' ? node.repeat : null,
   }
 }
 
@@ -1295,9 +1297,16 @@ export default function EditorPage() {
             openTaskRewardEditor={setEditingTaskReward}
             readOnly={isReadOnlyNode(editingNodeId!)}
             conditionProgress={progressData?.find((pr) => String(pr.questId) === editingNodeId)?.progress}
+            pendingRewards={progressData?.find((pr) => String(pr.questId) === editingNodeId)?.pendingRewards}
+            completedAt={progressData?.find((pr) => String(pr.questId) === editingNodeId)?.completedAt}
             claimReward={(() => {
               const p = progressData?.find((pr) => String(pr.questId) === editingNodeId)
-              if (!p?.completed || p.rewardClaimed) return undefined
+              if (!p) return undefined
+              // 繰り返しクエスト: pendingRewards が残っていれば受取可能
+              // 通常クエスト: 完了済みかつ未受取なら受取可能
+              const hasPending = (p.pendingRewards ?? 0) > 0
+              const normalClaimable = p.completed && !p.rewardClaimed
+              if (!hasPending && !normalClaimable) return undefined
               return async () => {
                 await progressApi.claim(editingNodeId!)
                 await queryClient.invalidateQueries({ queryKey: ['progress'] })

@@ -25,6 +25,17 @@ public class Quest {
     public String creatorName;
     public String createdAt;
     public String updatedAt;
+    /** 繰り返し設定 (null = なし) */
+    public RepeatConfig repeat;
+
+    public static class RepeatConfig {
+        /** "none" | "cooldown" | "schedule" | "unlimited" */
+        public String type;
+        /** cooldown 用: 時間数 */
+        public double cooldownHours;
+        /** schedule 用: cron 式 "分 時 日 月 曜日" */
+        public String cron;
+    }
 
     public static class MapPosition {
         public double x;

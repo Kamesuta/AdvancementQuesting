@@ -223,22 +223,38 @@ public class ProgressManager {
     }
 
     /**
-     * 報酬を受け取る。
-     * @return true: 受け取り成功、false: 未完了または受け取り済み
+     * 報酬を受け取る（まとめて全 pending_rewards 分）。
+     * @return 受け取った回数 (0 = 未完了または受取済み)
      */
-    public boolean claimReward(String playerUuid, int questId) throws SQLException {
-        boolean claimed = progressDao.markRewardClaimed(playerUuid, questId);
-        if (!claimed) return false;
-
+    public int claimReward(String playerUuid, int questId) throws SQLException {
         Quest quest = questManager.findById(questId);
-        if (quest == null || quest.rewards == null) return true;
+        if (quest == null) return 0;
+
+        ProgressDao.ProgressRecord rec = progressDao.findByPlayerAndQuest(playerUuid, questId);
+        if (rec == null) return 0;
+
+        // 繰り返しクエストは pending_rewards を全部消費、非繰り返しは従来の markRewardClaimed
+        boolean isRepeat = quest.repeat != null && !"none".equals(quest.repeat.type);
+        int claimed = 0;
+        if (isRepeat) {
+            while (progressDao.claimOnePendingReward(playerUuid, questId)) {
+                claimed++;
+            }
+        } else {
+            boolean ok = progressDao.markRewardClaimed(playerUuid, questId);
+            claimed = ok ? 1 : 0;
+        }
+        if (claimed == 0) return 0;
 
         Player player = Bukkit.getPlayer(java.util.UUID.fromString(playerUuid));
-        if (player == null) return true; // オフラインなら次回ログイン時に渡す（将来対応）
+        if (player == null) return claimed;
 
         List<Map<String, Object>> rewards = quest.rewards;
-        Bukkit.getScheduler().runTask(plugin, () -> giveRewards(player, rewards));
-        return true;
+        final int times = claimed;
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            for (int i = 0; i < times; i++) giveRewards(player, rewards);
+        });
+        return claimed;
     }
 
     /** 納品結果: conditionId → 納品数 */
@@ -636,11 +652,39 @@ public class ProgressManager {
         return true;
     }
 
+    /**
+     * クエスト完了時の共通処理: pending_rewards インクリメント + 通知 + 繰り返しリセット。
+     * upsertProgress で completed=true にした後に呼ぶ。
+     */
     private void notifyQuestComplete(String playerUuid, Quest quest) {
+        // pending_rewards をインクリメント
+        try {
+            progressDao.incrementCompletedCount(playerUuid, quest.id);
+        } catch (Exception e) {
+            log.warning("incrementCompletedCount error: " + e.getMessage());
+        }
+
         // SSE でブラウザに通知 (Javalin スレッドから呼べる)
         if (notificationRoutes != null) {
             notificationRoutes.sendQuestComplete(playerUuid, quest.id, quest.title,
                 playerUuidToName(playerUuid));
+        }
+
+        // 繰り返しタイプ処理
+        Quest.RepeatConfig repeat = quest.repeat;
+        if (repeat != null) {
+            if ("unlimited".equals(repeat.type)) {
+                // 即座にリセット
+                try {
+                    progressDao.resetForRepeat(playerUuid, quest.id);
+                } catch (Exception e) {
+                    log.warning("resetForRepeat (unlimited) error: " + e.getMessage());
+                }
+            } else if ("cooldown".equals(repeat.type)) {
+                // cooldown は ProgressRoutes の /status で残り時間を返すので、ここでは何もしない
+                // (クライアントが completedAt から計算する)
+            }
+            // schedule は RepeatScheduler が毎分チェックしてリセットする
         }
 
         Player player = Bukkit.getPlayer(java.util.UUID.fromString(playerUuid));

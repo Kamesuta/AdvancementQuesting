@@ -14,4 +14,6 @@ export interface PlayerProgress {
   rewardClaimed: boolean
   startedAt: string
   completedAt: string | null
+  completedCount: number
+  pendingRewards: number
 }

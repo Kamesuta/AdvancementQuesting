@@ -85,6 +85,45 @@ router.post('/:questId/condition/:conditionId/complete', requireAuth, async (req
   res.json({ status: 'completed' })
 })
 
+// POST /api/progress/:questId/deliver — 納品 (モック: 全納品タスクを完了にする)
+router.post('/:questId/deliver', requireAuth, async (req: AuthRequest, res) => {
+  const questId = parseInt(String(req.params['questId']), 10)
+  if (isNaN(questId)) { res.status(400).json({ error: 'Invalid questId' }); return }
+
+  const quest = await db.select().from(quests).where(eq(quests.id, questId)).get()
+  if (!quest) { res.status(404).json({ error: 'Quest not found' }); return }
+
+  const conditions = Array.isArray(quest.conditions) ? quest.conditions as Array<Record<string, unknown>> : []
+  const deliveryConds = conditions.filter((c) => c['type'] === 'delivery')
+
+  const existing = await db.select().from(playerProgress).where(
+    and(eq(playerProgress.playerUuid, req.playerUuid!), eq(playerProgress.questId, questId))
+  ).get()
+
+  const progress: Array<Record<string, unknown>> = Array.isArray(existing?.progress)
+    ? (existing!.progress as Array<Record<string, unknown>>)
+    : []
+
+  // モック: 納品タスクを全て完了扱いにする
+  const delivered: Record<string, number> = {}
+  const newProgress = progress.filter((p) => !deliveryConds.some((c) => c['id'] === p['conditionId']))
+  for (const c of deliveryConds) {
+    newProgress.push({ conditionId: c['id'], completed: true })
+    delivered[String(c['itemType'] ?? 'unknown')] = Number(c['count'] ?? 1)
+  }
+
+  const allDone = conditions.every((c) => newProgress.some((p) => p['conditionId'] === c['id'] && p['completed'] === true))
+
+  await db.insert(playerProgress).values({
+    playerUuid: req.playerUuid!, questId, progress: newProgress, completed: allDone, rewardClaimed: false,
+  }).onConflictDoUpdate({
+    target: [playerProgress.playerUuid, playerProgress.questId],
+    set: { progress: newProgress, completed: allDone },
+  })
+
+  res.json({ delivered, failed: {} })
+})
+
 // POST /api/progress/:questId/claim — 報酬受け取り
 router.post('/:questId/claim', requireAuth, async (req: AuthRequest, res) => {
   const questId = parseInt(String(req.params['questId']), 10)

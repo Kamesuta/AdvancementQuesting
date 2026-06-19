@@ -17,7 +17,8 @@ import { createBot, quitBot, waitForChat, apiRequest, rcon, API_BASE } from './h
 import type { Bot } from 'mineflayer'
 
 /**
- * SSE ストリームを購読し、最初に届いたイベント名を返す。
+ * SSE ストリームを購読し、最初に届いた「意味のある」イベント名を返す。
+ * 接続確認用の `connected` ping は無視する。
  * タイムアウト (ms) 以内に何も来なければ null を返す。
  */
 function waitForSseEvent(token: string, timeoutMs = 10000): Promise<string | null> {
@@ -40,6 +41,8 @@ function waitForSseEvent(token: string, timeoutMs = 10000): Promise<string | nul
           for (const line of lines) {
             if (line.startsWith('event: ')) {
               const eventName = line.slice('event: '.length).trim()
+              // 接続直後に届く `connected` ping はクエストイベントではないので無視する
+              if (eventName === 'connected') continue
               clearTimeout(timer)
               controller.abort()
               resolve(eventName)

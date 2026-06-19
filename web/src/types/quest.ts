@@ -103,6 +103,15 @@ export interface PointReward {
 
 export type Reward = ItemReward | CommandReward | ExperienceReward | PermissionReward | MoneyReward | PointReward
 
+export interface RepeatConfig {
+  /** "none" | "cooldown" | "schedule" | "unlimited" */
+  type: 'none' | 'cooldown' | 'schedule' | 'unlimited'
+  /** cooldown 用: 時間数 */
+  cooldownHours?: number
+  /** schedule 用: cron 式 "分 時 日 月 曜日" */
+  cron?: string
+}
+
 export interface MapPosition {
   x: number
   y: number
@@ -130,6 +139,7 @@ export interface Quest {
   creatorName: string | null
   createdAt: string
   updatedAt: string
+  repeat?: RepeatConfig | null
 }
 
 export type QuestCreateInput = Omit<Quest, 'id' | 'createdAt' | 'updatedAt' | 'creatorUuid' | 'creatorName'> & {

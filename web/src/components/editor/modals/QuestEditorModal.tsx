@@ -7,6 +7,7 @@ import { getDisplayText } from '../utils.js'
 import { useIsMobile } from '@/hooks/useIsMobile.js'
 import { useMcLang } from '@/hooks/useMcData.js'
 import type { ConditionProgress } from '@/types/progress.js'
+import { nextFire, cooldownNextFire, formatCountdown } from '../CronParser.js'
 
 interface ProposalMeta {
   proposalId: number
@@ -35,6 +36,10 @@ interface QuestEditorModalProps {
   onCheckmarkComplete?: (conditionId: string) => Promise<void>
   /** プレイモードで納品ボタンを押す。インベントリからアイテムを消費して進捗を更新する */
   onDeliver?: () => Promise<void>
+  /** 繰り返しクエストの未受取報酬数 */
+  pendingRewards?: number
+  /** クエスト最終達成時刻 (クールダウン残り計算用) */
+  completedAt?: string | null
 }
 
 /**
@@ -54,14 +59,33 @@ export function QuestEditorModal({
   claimReward,
   onCheckmarkComplete,
   onDeliver,
+  pendingRewards,
+  completedAt,
 }: QuestEditorModalProps) {
   const [showTaskMenu, setShowTaskMenu] = useState(false)
   const [showRewardMenu, setShowRewardMenu] = useState(false)
   const [claiming, setClaiming] = useState(false)
   const [delivering, setDelivering] = useState(false)
   const [checkingConditionId, setCheckingConditionId] = useState<string | null>(null)
-const isMobile = useIsMobile()
+  const isMobile = useIsMobile()
   const { data: lang } = useMcLang()
+
+  // 繰り返し設定
+  const repeat = node.repeat
+  const repeatCountdown = (() => {
+    if (!repeat || repeat.type === 'none' || repeat.type === 'unlimited') return null
+    if (repeat.type === 'cooldown' && repeat.cooldownHours && completedAt) {
+      const next = cooldownNextFire(completedAt, repeat.cooldownHours)
+      if (next <= new Date()) return null // already available
+      return formatCountdown(next)
+    }
+    if (repeat.type === 'schedule' && repeat.cron) {
+      const next = nextFire(repeat.cron)
+      if (!next) return null
+      return formatCountdown(next)
+    }
+    return null
+  })()
 
   const addTask = (type: string) => {
     const newTask = {
@@ -272,6 +296,89 @@ const isMobile = useIsMobile()
     </div>
   )
 
+  /** 繰り返し設定エディタ (編集モードのみ) */
+  const updateRepeat = (patch: Partial<NonNullable<EditorNode['repeat']>>) => {
+    const cur = node.repeat ?? { type: 'none' as const }
+    updateNode({ ...node, repeat: { ...cur, ...patch } })
+  }
+
+  const RepeatEditor = () => {
+    const r = node.repeat ?? { type: 'none' as const }
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">繰り返し</div>
+        <div className="flex gap-2 flex-wrap">
+          {([
+            { id: 'none', label: 'なし' },
+            { id: 'cooldown', label: 'クールダウン' },
+            { id: 'schedule', label: '時刻指定' },
+            { id: 'unlimited', label: '無制限' },
+          ] as const).map((opt) => (
+            <button
+              key={opt.id}
+              onClick={() => updateRepeat({ type: opt.id })}
+              className={`text-xs px-3 py-1.5 border rounded-sm font-bold ${r.type === opt.id ? 'bg-blue-600 border-blue-400 text-white' : 'bg-black/30 border-gray-600 text-gray-300 hover:bg-white/5'}`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {r.type === 'cooldown' && (
+          <label className="flex items-center gap-2 text-sm text-gray-300">
+            <span>復活までの時間</span>
+            <input
+              type="number"
+              min={0.1}
+              step={0.5}
+              value={r.cooldownHours ?? 24}
+              onChange={(e) => updateRepeat({ cooldownHours: parseFloat(e.target.value) || 0 })}
+              className="w-24 bg-black/30 border border-gray-600 px-2 py-1 rounded-sm outline-none focus:border-blue-500"
+            />
+            <span>時間</span>
+          </label>
+        )}
+        {r.type === 'schedule' && (
+          <div className="flex flex-col gap-1">
+            <label className="flex items-center gap-2 text-sm text-gray-300">
+              <span>cron式</span>
+              <input
+                type="text"
+                value={r.cron ?? '0 0 * * *'}
+                onChange={(e) => updateRepeat({ cron: e.target.value })}
+                placeholder="分 時 日 月 曜日"
+                className="flex-1 bg-black/30 border border-gray-600 px-2 py-1 rounded-sm outline-none focus:border-blue-500 font-mono"
+              />
+            </label>
+            <div className="flex gap-1 flex-wrap">
+              {([
+                { label: '毎時00分', cron: '0 * * * *' },
+                { label: '毎日0時', cron: '0 0 * * *' },
+                { label: '毎週月曜0時', cron: '0 0 * * 1' },
+                { label: '毎月1日0時', cron: '0 0 1 * *' },
+              ] as const).map((p) => (
+                <button
+                  key={p.cron}
+                  onClick={() => updateRepeat({ cron: p.cron })}
+                  className="text-[10px] px-2 py-0.5 border border-gray-600 rounded-sm text-gray-400 hover:bg-white/5"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            {r.cron && (() => {
+              const next = nextFire(r.cron)
+              return (
+                <div className="text-xs text-gray-500">
+                  {next ? `次の復活: ${formatCountdown(next)} 後` : '⚠ cron式が無効です'}
+                </div>
+              )
+            })()}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   // ---------------------------------------------------------------------------
   // レイアウト切り替え
   // ---------------------------------------------------------------------------
@@ -316,7 +423,7 @@ const isMobile = useIsMobile()
             <div className="text-xs text-gray-400">✨ {node.creatorName} 作成</div>
           )}
           {/* 納品ボタン / 報酬受取ボタン / いいね・承認/却下ボタン */}
-          {(onDeliver || claimReward || proposalMeta) && (
+          {(onDeliver || claimReward || proposalMeta || repeatCountdown) && (
             <div className="flex items-center gap-2 flex-wrap">
               {onDeliver && (
                 <button
@@ -337,22 +444,28 @@ const isMobile = useIsMobile()
                 </button>
               )}
               {claimReward && (
-                <button
-                  onClick={async () => { setClaiming(true); try { await claimReward() } finally { setClaiming(false) } }}
-                  disabled={claiming}
-                  className="text-sm px-4 py-1.5 border-2 font-bold mr-auto"
-                  style={{
-                    color: '#0a1f0a',
-                    backgroundColor: claiming ? '#5B9B5B' : '#7BC67B',
-                    borderTopColor: '#A0E0A0',
-                    borderLeftColor: '#A0E0A0',
-                    borderBottomColor: '#3B7B3B',
-                    borderRightColor: '#3B7B3B',
-                    cursor: claiming ? 'wait' : 'pointer',
-                  }}
-                >
-                  {claiming ? '受取中...' : '★ 報酬を受け取る'}
-                </button>
+                <div className="flex flex-col gap-1 mr-auto">
+                  <button
+                    onClick={async () => { setClaiming(true); try { await claimReward() } finally { setClaiming(false) } }}
+                    disabled={claiming}
+                    className="text-sm px-4 py-1.5 border-2 font-bold"
+                    style={{
+                      color: '#0a1f0a',
+                      backgroundColor: claiming ? '#5B9B5B' : '#7BC67B',
+                      borderTopColor: '#A0E0A0',
+                      borderLeftColor: '#A0E0A0',
+                      borderBottomColor: '#3B7B3B',
+                      borderRightColor: '#3B7B3B',
+                      cursor: claiming ? 'wait' : 'pointer',
+                    }}
+                  >
+                    {claiming ? '受取中...' : `★ 報酬を受け取る${pendingRewards && pendingRewards > 1 ? ` (×${pendingRewards})` : ''}`}
+                  </button>
+                  {repeatCountdown && <span className="text-xs text-gray-400">次の復活まで {repeatCountdown}</span>}
+                </div>
+              )}
+              {!claimReward && repeatCountdown && (
+                <span className="text-xs text-gray-400 mr-auto">次の復活まで {repeatCountdown}</span>
               )}
               {proposalMeta && (<>
                 <span className="text-xs text-gray-400 mr-auto">by {proposalMeta.proposerName}</span>
@@ -425,6 +538,7 @@ const isMobile = useIsMobile()
               placeholder="クエストの詳細な説明..."
             />
           </div>
+          {!readOnly && <RepeatEditor />}
         </div>
       </div>
     )
@@ -475,25 +589,31 @@ const isMobile = useIsMobile()
             <div className="text-xs text-gray-400">✨ {node.creatorName} 作成</div>
           )}
           {/* 2行目: 報酬受取ボタン / いいね・承認/却下ボタン */}
-          {(claimReward || proposalMeta) && (
+          {(claimReward || proposalMeta || repeatCountdown) && (
             <div className="flex items-center gap-2 flex-wrap">
               {claimReward && (
-                <button
-                  onClick={async () => { setClaiming(true); try { await claimReward() } finally { setClaiming(false) } }}
-                  disabled={claiming}
-                  className="text-sm px-4 py-1.5 border-2 font-bold mr-auto"
-                  style={{
-                    color: '#0a1f0a',
-                    backgroundColor: claiming ? '#5B9B5B' : '#7BC67B',
-                    borderTopColor: '#A0E0A0',
-                    borderLeftColor: '#A0E0A0',
-                    borderBottomColor: '#3B7B3B',
-                    borderRightColor: '#3B7B3B',
-                    cursor: claiming ? 'wait' : 'pointer',
-                  }}
-                >
-                  {claiming ? '受取中...' : '★ 報酬を受け取る'}
-                </button>
+                <div className="flex flex-col gap-1 mr-auto">
+                  <button
+                    onClick={async () => { setClaiming(true); try { await claimReward() } finally { setClaiming(false) } }}
+                    disabled={claiming}
+                    className="text-sm px-4 py-1.5 border-2 font-bold"
+                    style={{
+                      color: '#0a1f0a',
+                      backgroundColor: claiming ? '#5B9B5B' : '#7BC67B',
+                      borderTopColor: '#A0E0A0',
+                      borderLeftColor: '#A0E0A0',
+                      borderBottomColor: '#3B7B3B',
+                      borderRightColor: '#3B7B3B',
+                      cursor: claiming ? 'wait' : 'pointer',
+                    }}
+                  >
+                    {claiming ? '受取中...' : `★ 報酬を受け取る${pendingRewards && pendingRewards > 1 ? ` (×${pendingRewards})` : ''}`}
+                  </button>
+                  {repeatCountdown && <span className="text-xs text-gray-400">次の復活まで {repeatCountdown}</span>}
+                </div>
+              )}
+              {!claimReward && repeatCountdown && (
+                <span className="text-xs text-gray-400 mr-auto">次の復活まで {repeatCountdown}</span>
               )}
               {proposalMeta && (<>
                 <span className="text-xs text-gray-400 mr-auto">by {proposalMeta.proposerName}</span>
@@ -551,14 +671,16 @@ const isMobile = useIsMobile()
           <RewardList />
         </div>
 
-        {/* 下段: 説明文 */}
-        <div className="flex flex-col gap-3 flex-1">
+        {/* 下段: 説明文 + 繰り返し設定 */}
+        <div className="flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto">
           <textarea
             value={node.description}
             onChange={(e) => updateNode({ ...node, description: e.target.value })}
-            className="w-full flex-1 min-h-[150px] bg-black/30 border border-gray-700 p-3 text-sm text-gray-200 resize-none outline-none focus:border-blue-500 rounded-sm leading-relaxed"
+            readOnly={readOnly}
+            className={`w-full flex-1 min-h-[120px] bg-black/30 border border-gray-700 p-3 text-sm text-gray-200 resize-none outline-none rounded-sm leading-relaxed ${readOnly ? 'cursor-default' : 'focus:border-blue-500'}`}
             placeholder="クエストの詳細な説明を入力してください..."
           />
+          {!readOnly && <RepeatEditor />}
         </div>
       </div>
     </div>

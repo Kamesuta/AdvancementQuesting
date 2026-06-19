@@ -85,12 +85,22 @@ public class NotificationRoutes {
 
     /**
      * playerUuid 宛に progress_update イベントを送信する（演出なし・進捗の再取得のみ）。
-     * 管理コマンドで達成状態を変更したときなど、達成済み表示だけ即時更新したい場合に使う。
      */
     public void sendProgressUpdate(String playerUuid, int questId, boolean completed) {
         send(playerUuid, "progress_update", Map.of(
             "questId", questId,
             "completed", completed,
+            "playerUuid", playerUuid
+        ));
+    }
+
+    /**
+     * 繰り返しクエストが復活したときに送信する。
+     * クライアントは progress を再取得して残り時間表示を更新する。
+     */
+    public void sendRepeatReset(String playerUuid, int questId) {
+        send(playerUuid, "repeat_reset", Map.of(
+            "questId", questId,
             "playerUuid", playerUuid
         ));
     }

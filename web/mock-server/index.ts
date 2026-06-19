@@ -126,14 +126,19 @@ app.post('/api/test/reset-proposals', async (_req, res) => {
 
 // テスト用: 指定プレイヤー・クエストの進捗を完了状態にする
 app.post('/api/test/set-progress', express.json(), async (req, res) => {
-  const { playerUuid, questId, completed, rewardClaimed } = req.body as {
+  const { playerUuid, questId, completed, rewardClaimed, pendingRewards, completedCount } = req.body as {
     playerUuid: string; questId: number; completed: boolean; rewardClaimed?: boolean
+    pendingRewards?: number; completedCount?: number
   }
   await db.insert(playerProgress).values({
     playerUuid, questId, progress: [], completed: !!completed, rewardClaimed: !!rewardClaimed,
+    pendingRewards: pendingRewards ?? 0, completedCount: completedCount ?? 0,
   }).onConflictDoUpdate({
     target: [playerProgress.playerUuid, playerProgress.questId],
-    set: { completed: !!completed, rewardClaimed: !!rewardClaimed },
+    set: {
+      completed: !!completed, rewardClaimed: !!rewardClaimed,
+      pendingRewards: pendingRewards ?? 0, completedCount: completedCount ?? 0,
+    },
   })
   res.json({ ok: true })
 })

@@ -11,6 +11,7 @@ export const quests = sqliteTable('quests', {
   rewards: text('rewards', { mode: 'json' }).$type<object[]>().notNull().default([]),
   mapPosition: text('map_position', { mode: 'json' }).$type<{ x: number; y: number } | null>(),
   customButtons: text('custom_buttons', { mode: 'json' }).$type<object[]>().notNull().default([]),
+  repeat: text('repeat', { mode: 'json' }).$type<{ type: string; cooldownHours?: number; cron?: string } | null>(),
   status: text('status', { enum: ['draft', 'proposed', 'public', 'hidden'] }).notNull().default('draft'),
   creatorUuid: text('creator_uuid'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
@@ -24,6 +25,8 @@ export const playerProgress = sqliteTable('player_progress', {
   progress: text('progress', { mode: 'json' }).$type<object[]>().notNull().default([]),
   completed: integer('completed', { mode: 'boolean' }).notNull().default(false),
   rewardClaimed: integer('reward_claimed', { mode: 'boolean' }).notNull().default(false),
+  completedCount: integer('completed_count').notNull().default(0),
+  pendingRewards: integer('pending_rewards').notNull().default(0),
   startedAt: integer('started_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   completedAt: integer('completed_at', { mode: 'timestamp' }),
 }, (t) => [

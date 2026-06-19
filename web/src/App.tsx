@@ -201,6 +201,11 @@ function AppInner() {
     queryClient.invalidateQueries({ queryKey: ['progress'] })
   }, [queryClient])
 
+  // 繰り返しクエストが復活したら進捗を再取得（残り時間・受取状態を更新）
+  const handleRepeatReset = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['progress'] })
+  }, [queryClient])
+
   // ログイン状態を監視 (ログイン後に SSE を張り直すため / 編集者ログイン時の viewMode 自動切替)
   const { data: meForSse } = useQuery({
     queryKey: ['me'],
@@ -214,7 +219,7 @@ function AppInner() {
     else if (!meForSse) setViewMode('play')
   }, [meForSse?.role])
   useQuestNotifications(
-    { onQuestComplete: handleQuestComplete, onProgressUpdate: handleProgressUpdate },
+    { onQuestComplete: handleQuestComplete, onProgressUpdate: handleProgressUpdate, onRepeatReset: handleRepeatReset },
     meForSse?.playerUuid ?? null,
   )
 

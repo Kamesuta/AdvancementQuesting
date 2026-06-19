@@ -12,6 +12,7 @@ import io.javalin.http.NotFoundResponse;
 
 import java.sql.SQLException;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -90,9 +91,9 @@ public class ProgressRoutes {
             SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
             int questId = parseId(ctx.pathParam("questId"));
             try {
-                boolean ok = progressManager.claimReward(session.playerUuid(), questId);
-                if (!ok) throw new ForbiddenResponse("Quest not completed or reward already claimed");
-                ctx.json(Map.of("status", "claimed"));
+                int claimed = progressManager.claimReward(session.playerUuid(), questId);
+                if (claimed == 0) throw new ForbiddenResponse("Quest not completed or no pending rewards");
+                ctx.json(Map.of("status", "claimed", "count", claimed));
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             }
@@ -106,16 +107,18 @@ public class ProgressRoutes {
         } catch (Exception e) {
             progressList = Collections.emptyList();
         }
-        return Map.of(
-            "id", r.id(),
-            "playerUuid", r.playerUuid(),
-            "questId", r.questId(),
-            "progress", progressList,
-            "completed", r.completed(),
-            "rewardClaimed", r.rewardClaimed(),
-            "startedAt", r.startedAt(),
-            "completedAt", r.completedAt() != null ? r.completedAt() : ""
-        );
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", r.id());
+        m.put("playerUuid", r.playerUuid());
+        m.put("questId", r.questId());
+        m.put("progress", progressList);
+        m.put("completed", r.completed());
+        m.put("rewardClaimed", r.rewardClaimed());
+        m.put("startedAt", r.startedAt());
+        m.put("completedAt", r.completedAt() != null ? r.completedAt() : "");
+        m.put("completedCount", r.completedCount());
+        m.put("pendingRewards", r.pendingRewards());
+        return m;
     }
 
     private static int parseId(String s) {

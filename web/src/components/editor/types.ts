@@ -55,6 +55,13 @@ export interface EditorReward {
   displayName?: string // カスタム表示名
 }
 
+/** 繰り返し設定のエディタ内表現 */
+export interface EditorRepeat {
+  type: 'none' | 'cooldown' | 'schedule' | 'unlimited'
+  cooldownHours?: number
+  cron?: string
+}
+
 /** マップ上に配置する1つのクエストノード */
 export interface EditorNode {
   id: string
@@ -67,6 +74,7 @@ export interface EditorNode {
   tasks: EditorTask[]
   rewards: EditorReward[]
   creatorName?: string | null
+  repeat?: EditorRepeat
 }
 
 /** クエスト間の依存エッジ */

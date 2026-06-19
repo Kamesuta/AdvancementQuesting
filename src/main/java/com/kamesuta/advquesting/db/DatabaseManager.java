@@ -73,6 +73,9 @@ public class DatabaseManager {
                     completed_at INTEGER,
                     UNIQUE (player_uuid, quest_id)
                 )""");
+            // マイグレーション: 繰り返し対応カラムの追加
+            try { st.execute("ALTER TABLE player_progress ADD COLUMN completed_count INTEGER NOT NULL DEFAULT 0"); } catch (SQLException ignored) {}
+            try { st.execute("ALTER TABLE player_progress ADD COLUMN pending_rewards INTEGER NOT NULL DEFAULT 0"); } catch (SQLException ignored) {}
         }
     }
 

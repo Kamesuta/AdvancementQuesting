@@ -145,8 +145,8 @@ public class QuestCommand implements CommandExecutor, TabCompleter {
             return;
         }
         try {
-            boolean ok = progressManager.claimReward(player.getUniqueId().toString(), questId);
-            if (!ok) {
+            int claimed = progressManager.claimReward(player.getUniqueId().toString(), questId);
+            if (claimed == 0) {
                 player.sendMessage(Component.text("クエストが未完了か、すでに報酬を受け取り済みです。", NamedTextColor.RED));
             }
         } catch (SQLException e) {

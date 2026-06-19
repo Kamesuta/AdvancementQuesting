@@ -13,11 +13,18 @@ export interface ProgressUpdateEvent {
   playerUuid: string
 }
 
+export interface RepeatResetEvent {
+  questId: number
+  playerUuid: string
+}
+
 interface Handlers {
   /** 達成通知（演出あり） */
   onQuestComplete: (event: QuestCompleteEvent) => void
   /** 進捗変化通知（演出なし・達成済み表示の即時更新用） */
   onProgressUpdate?: (event: ProgressUpdateEvent) => void
+  /** 繰り返しクエスト復活通知（残り時間表示の更新用） */
+  onRepeatReset?: (event: RepeatResetEvent) => void
 }
 
 /**
@@ -53,6 +60,15 @@ export function useQuestNotifications(
       try {
         const data = JSON.parse(e.data) as ProgressUpdateEvent
         handlersRef.current.onProgressUpdate?.(data)
+      } catch {
+        // ignore parse errors
+      }
+    })
+
+    es.addEventListener('repeat_reset', (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data) as RepeatResetEvent
+        handlersRef.current.onRepeatReset?.(data)
       } catch {
         // ignore parse errors
       }

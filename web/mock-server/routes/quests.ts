@@ -47,6 +47,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
     rewards: body.rewards ?? [],
     mapPosition: body.mapPosition ?? null,
     customButtons: body.customButtons ?? [],
+    repeat: body.repeat ?? null,
     status: body.status ?? 'draft',
     creatorUuid: req.playerUuid!,
     createdAt: now,
