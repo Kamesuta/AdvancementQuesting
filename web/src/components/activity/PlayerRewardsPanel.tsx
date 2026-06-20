@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { rewardsApi } from '@/api/rewards.js'
 import { ItemIcon } from '@/components/editor/ItemIcon.js'
@@ -18,6 +19,38 @@ const TYPE_META: Record<RewardType, { icon: string; label: string; unit: string 
 
 const TYPE_ORDER: RewardType[] = ['point', 'experience', 'item', 'command']
 
+interface PopoverPos { top: number; left: number; anchorRight: number }
+
+/** fixed ポップオーバー本体 — overflow を脱出して document.body に Portal する */
+function Popover({
+  pos, maxHeight = 240, onClose, children,
+}: {
+  pos: PopoverPos
+  maxHeight?: number
+  onClose: () => void
+  children: React.ReactNode
+}) {
+  // ビューポート内に必ず収まるよう left・width を計算
+  const vw = window.innerWidth
+  const maxW = Math.min(280, vw - 16)
+  // アンカー左端基準で配置し、右端がはみ出す場合は右端揃え
+  const left = Math.min(pos.left, vw - maxW - 8)
+
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-[9998]" onClick={onClose} />
+      <div
+        className="fixed z-[9999] bg-[#1e1f29] border border-gray-600 rounded shadow-2xl overflow-y-auto"
+        style={{ top: pos.top, left, width: maxW, maxHeight }}
+        data-testid="reward-popover"
+      >
+        {children}
+      </div>
+    </>,
+    document.body,
+  )
+}
+
 /** アイテム以外のスカラー報酬チップ (クリックで内訳ポップオーバー) */
 function ScalarChip({
   type, total, items, onSelectQuest,
@@ -28,13 +61,27 @@ function ScalarChip({
   onSelectQuest?: (questId: number) => void
 }) {
   const meta = TYPE_META[type]
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<PopoverPos | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+
+  const toggle = useCallback(() => {
+    if (pos) {
+      setPos(null)
+      return
+    }
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 4, left: r.left, anchorRight: r.right })
+    }
+  }, [pos])
+
+  const close = useCallback(() => setPos(null), [])
 
   return (
-    <div className="relative" ref={ref}>
+    <>
       <button
-        onClick={() => setOpen((o) => !o)}
+        ref={btnRef}
+        onClick={toggle}
         className="inline-flex items-center gap-1 text-xs px-2 py-1.5 rounded bg-black/40 border border-gray-600 hover:border-gray-400 transition-colors"
         title={`${meta.label}の内訳を見る`}
       >
@@ -43,34 +90,29 @@ function ScalarChip({
         <span className="text-gray-400">{meta.unit}</span>
       </button>
 
-      {open && (
-        <>
-          {/* バックドロップ */}
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          {/* 内訳ポップオーバー */}
-          <div className="absolute left-0 top-full mt-1 z-50 min-w-[200px] max-w-[260px] max-h-60 overflow-y-auto bg-[#1e1f29] border border-gray-600 rounded shadow-xl">
-            <div className="sticky top-0 bg-[#1e1f29] px-2 py-1 text-[11px] font-bold text-gray-400 border-b border-gray-700">
-              {meta.icon} {meta.label}の内訳
-            </div>
-            {items.map((it) => (
-              <button
-                key={it.id}
-                onClick={() => { setOpen(false); onSelectQuest?.(it.questId) }}
-                className="w-full flex items-center gap-2 px-2 py-1.5 text-left hover:bg-white/10 transition-colors"
-              >
-                <span className="flex-1 min-w-0 truncate text-xs text-gray-200">
-                  {it.rewardLabel || meta.label}
-                  <span className="text-gray-500 ml-1">／{it.questTitle}</span>
-                </span>
-                <span className="shrink-0 text-xs font-bold text-blue-300 tabular-nums">
-                  {it.amount.toLocaleString()}<span className="text-gray-500 font-normal">{meta.unit}</span>
-                </span>
-              </button>
-            ))}
+      {pos && (
+        <Popover pos={pos} onClose={close}>
+          <div className="sticky top-0 bg-[#1e1f29] px-2 py-1 text-[11px] font-bold text-gray-400 border-b border-gray-700">
+            {meta.icon} {meta.label}の内訳
           </div>
-        </>
+          {items.map((it) => (
+            <button
+              key={it.id}
+              onClick={() => { close(); onSelectQuest?.(it.questId) }}
+              className="w-full flex items-center gap-2 px-2 py-1.5 text-left hover:bg-white/10 transition-colors"
+            >
+              <span className="flex-1 min-w-0 truncate text-xs text-gray-200">
+                {it.rewardLabel || meta.label}
+                <span className="text-gray-500 ml-1">／{it.questTitle}</span>
+              </span>
+              <span className="shrink-0 text-xs font-bold text-blue-300 tabular-nums">
+                {it.amount.toLocaleString()}<span className="text-gray-500 font-normal">{meta.unit}</span>
+              </span>
+            </button>
+          ))}
+        </Popover>
       )}
-    </div>
+    </>
   )
 }
 
@@ -81,7 +123,7 @@ function ItemGrid({
   items: RewardClaimItem[]
   onSelectQuest?: (questId: number) => void
 }) {
-  const [openId, setOpenId] = useState<number | null>(null)
+  const [openState, setOpenState] = useState<{ key: string; pos: PopoverPos } | null>(null)
 
   if (items.length === 0) return null
 
@@ -98,53 +140,58 @@ function ItemGrid({
     }
   }
   const grouped = Array.from(byType.entries())
+  const openEntry = openState ? byType.get(openState.key) : null
 
   return (
     <div>
       <div className="text-[11px] font-bold text-gray-500 mb-1">📦 アイテム</div>
       <div className="flex flex-wrap gap-1">
-        {grouped.map(([itemType, { total, label, entries }]) => {
-          const isOpen = openId === entries[0]!.id
-          return (
-            <div key={itemType} className="relative">
-              <button
-                onClick={() => setOpenId(isOpen ? null : entries[0]!.id)}
-                className="relative flex items-center justify-center w-10 h-10 rounded bg-black/40 border border-gray-600 hover:border-gray-400 transition-colors"
-                title={`${label} ×${total}`}
-              >
-                <ItemIcon type={itemType} size={28} />
-                {total > 1 && (
-                  <span className="absolute bottom-0 right-0.5 text-[9px] font-bold text-white tabular-nums leading-none drop-shadow">
-                    {total > 999 ? '999+' : total}
-                  </span>
-                )}
-              </button>
-
-              {isOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setOpenId(null)} />
-                  <div className="absolute left-0 top-full mt-1 z-50 min-w-[180px] max-w-[240px] max-h-52 overflow-y-auto bg-[#1e1f29] border border-gray-600 rounded shadow-xl">
-                    <div className="sticky top-0 bg-[#1e1f29] px-2 py-1 text-[11px] font-bold text-gray-400 border-b border-gray-700 flex items-center gap-1">
-                      <ItemIcon type={itemType} size={14} />
-                      {label}
-                    </div>
-                    {entries.map((it) => (
-                      <button
-                        key={it.id}
-                        onClick={() => { setOpenId(null); onSelectQuest?.(it.questId) }}
-                        className="w-full flex items-center gap-2 px-2 py-1.5 text-left hover:bg-white/10 transition-colors"
-                      >
-                        <span className="flex-1 min-w-0 truncate text-xs text-gray-300">{it.questTitle}</span>
-                        <span className="shrink-0 text-xs font-bold text-blue-300 tabular-nums">×{it.amount}</span>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )
-        })}
+        {grouped.map(([itemType, { total, label }]) => (
+          <button
+            key={itemType}
+            onClick={(e) => {
+              if (openState?.key === itemType) {
+                setOpenState(null)
+                return
+              }
+              const r = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+              setOpenState({ key: itemType, pos: { top: r.bottom + 4, left: r.left, anchorRight: r.right } })
+            }}
+            className="relative flex items-center justify-center w-10 h-10 rounded bg-black/40 border border-gray-600 hover:border-gray-400 transition-colors"
+            title={`${label} ×${total}`}
+          >
+            <ItemIcon type={itemType} size={28} />
+            {total > 1 && (
+              <span className="absolute bottom-0 right-0.5 text-[9px] font-bold text-white tabular-nums leading-none drop-shadow">
+                {total > 999 ? '999+' : total}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
+
+      {openState && openEntry && (
+        <Popover
+          pos={openState.pos}
+          maxHeight={208}
+          onClose={() => setOpenState(null)}
+        >
+          <div className="sticky top-0 bg-[#1e1f29] px-2 py-1 text-[11px] font-bold text-gray-400 border-b border-gray-700 flex items-center gap-1">
+            <ItemIcon type={openState.key} size={14} />
+            {openEntry.label}
+          </div>
+          {openEntry.entries.map((it) => (
+            <button
+              key={it.id}
+              onClick={() => { setOpenState(null); onSelectQuest?.(it.questId) }}
+              className="w-full flex items-center gap-2 px-2 py-1.5 text-left hover:bg-white/10 transition-colors"
+            >
+              <span className="flex-1 min-w-0 truncate text-xs text-gray-300">{it.questTitle}</span>
+              <span className="shrink-0 text-xs font-bold text-blue-300 tabular-nums">×{it.amount}</span>
+            </button>
+          ))}
+        </Popover>
+      )}
     </div>
   )
 }
