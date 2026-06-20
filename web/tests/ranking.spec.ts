@@ -159,3 +159,20 @@ test('RK-6: 詳細を見るで全件表示に切り替わる', async ({ page }) 
   await expect(page.getByText('#11')).toBeVisible()
   await expect(page.getByText('#12')).toBeVisible()
 })
+
+test('RK-8: 既存の完了済み進捗がランキングへ移行される', async ({ page }) => {
+  await setRepeat(page, 1, null)
+  // クリアログは空。既存進捗 (player_progress) だけを完了状態にする
+  await page.request.post(`${MOCK}/api/test/set-progress`, {
+    data: { playerUuid: PLAYER_UUID, questId: 1, completed: true },
+  })
+  // 移行を実行
+  await page.request.post(`${MOCK}/api/test/migrate-completions`)
+
+  await loginAs(page, 'demo-player-token')
+  await openQuestModal(page, '1')
+
+  // 移行された自分 (Alex) がランキングに出る
+  await expect(page.getByText(/クリア順ランキング/)).toBeVisible()
+  await expect(page.getByText('(あなた)')).toBeVisible()
+})

@@ -58,6 +58,21 @@ public final class AdvancementQuesting extends JavaPlugin {
         QuestManager questManager = new QuestManager(getDataFolder());
         ProgressManager progressManager = new ProgressManager(this, questManager, progressDao, completionDao);
 
+        // 既存の完了済み進捗をクリアログへ初回移行する (冪等)。
+        // 機能リリース前にクリア済みのプレイヤーをランキングに載せる。
+        try {
+            int migrated = completionDao.migrateFromProgress(uuid -> {
+                try {
+                    return getServer().getOfflinePlayer(java.util.UUID.fromString(uuid)).getName();
+                } catch (Exception e) {
+                    return null;
+                }
+            });
+            if (migrated > 0) getLogger().info("ランキング: 既存クリア記録 " + migrated + " 件を移行しました");
+        } catch (Exception e) {
+            getLogger().warning("ランキングのクリア記録移行に失敗: " + e.getMessage());
+        }
+
         int port = getConfig().getInt("web-port", 8080);
         String webUrl = getConfig().getString("web-url", "http://localhost:" + port);
 

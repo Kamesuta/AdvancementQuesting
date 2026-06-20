@@ -17,6 +17,10 @@ config()
 // 起動時に自動マイグレーション
 migrate(db, { migrationsFolder: './mock-server/db/migrations' })
 
+// 既存の完了済み進捗をクリアログへ初回移行する (冪等)。
+// 本番 (AdvancementQuesting.onEnable) と同じく初回1クリアのみ。
+await migrateCompletionsFromProgress()
+
 const app = express()
 const port = parseInt(process.env.MOCK_PORT ?? '3000', 10)
 
@@ -191,6 +195,36 @@ app.post('/api/test/reset-completions', async (_req, res) => {
   await db.delete(questCompletions)
   res.json({ ok: true })
 })
+
+// テスト用: 既存進捗からクリアログへの移行を手動実行する (起動時移行の検証用)
+app.post('/api/test/migrate-completions', async (_req, res) => {
+  await migrateCompletionsFromProgress()
+  res.json({ ok: true })
+})
+
+// 既存 player_progress (completed) → quest_completions 初回移行 (冪等)
+async function migrateCompletionsFromProgress() {
+  const completedRows = (await db.select().from(playerProgress)).filter((p) => p.completed)
+  if (completedRows.length === 0) return
+  const existing = await db.select().from(questCompletions)
+  const seen = new Set(existing.map((c) => `${c.playerUuid}:${c.questId}`))
+  const sessions = await db.select().from(playerSessions)
+  const nameByUuid = new Map(sessions.map((s) => [s.playerUuid, s.playerName]))
+  let migrated = 0
+  for (const p of completedRows) {
+    const key = `${p.playerUuid}:${p.questId}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    await db.insert(questCompletions).values({
+      questId: p.questId,
+      playerUuid: p.playerUuid,
+      playerName: nameByUuid.get(p.playerUuid) ?? p.playerUuid,
+      completedAt: (p.completedAt ?? new Date()).toISOString(),
+    })
+    migrated++
+  }
+  if (migrated > 0) console.log(`[ranking] migrated ${migrated} existing completion(s)`)
+}
 
 app.listen(port, () => {
   console.log(`Mock server running on http://localhost:${port}`)

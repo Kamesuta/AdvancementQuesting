@@ -24,6 +24,52 @@ public class CompletionDao {
         this.db = db;
     }
 
+    /**
+     * 既存の player_progress (completed=1) からクリアログを1回だけ移行する。
+     * 機能リリース前にクリア済みのプレイヤーをランキングに載せるための初回移行。
+     *
+     * - 各 (player_uuid, quest_id) について quest_completions が未登録のときだけ
+     *   1レコード挿入する（初回1クリアのみ。冪等で再起動しても二重挿入しない）。
+     * - completed_at が無い古いレコードは現在時刻で代用する。
+     * - player_name は nameResolver(uuid) で解決する（Bukkit のオフライン名解決を注入）。
+     *
+     * @param nameResolver UUID → 表示名。null/失敗時は UUID をそのまま使う。
+     * @return 移行したレコード数
+     */
+    public int migrateFromProgress(java.util.function.Function<String, String> nameResolver) throws SQLException {
+        String sql = """
+            SELECT pp.player_uuid AS uuid, pp.quest_id AS qid, pp.completed_at AS cat
+            FROM player_progress pp
+            WHERE pp.completed = 1
+              AND NOT EXISTS (
+                  SELECT 1 FROM quest_completions qc
+                  WHERE qc.player_uuid = pp.player_uuid AND qc.quest_id = pp.quest_id
+              )
+            """;
+        int migrated = 0;
+        try (PreparedStatement ps = db.getConnection().prepareStatement(sql)) {
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                String uuid = rs.getString("uuid");
+                int qid = rs.getInt("qid");
+                String completedAt = rs.getString("cat");
+                if (completedAt == null || completedAt.isEmpty()) {
+                    completedAt = java.time.Instant.now().toString();
+                }
+                String name = uuid;
+                if (nameResolver != null) {
+                    try {
+                        String resolved = nameResolver.apply(uuid);
+                        if (resolved != null && !resolved.isEmpty()) name = resolved;
+                    } catch (Exception ignored) {}
+                }
+                insert(uuid, name, qid, completedAt);
+                migrated++;
+            }
+        }
+        return migrated;
+    }
+
     /** クリアログを1件追記する。 */
     public void insert(String playerUuid, String playerName, int questId, String completedAt) throws SQLException {
         String sql = "INSERT INTO quest_completions (player_uuid, player_name, quest_id, completed_at) VALUES (?, ?, ?, ?)";
