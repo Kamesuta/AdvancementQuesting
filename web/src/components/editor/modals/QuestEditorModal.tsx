@@ -589,9 +589,9 @@ export function QuestEditorModal({
   // デスクトップ: 中央ダイアログ
   return (
     <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/70" onClick={close}>
+      <div className="flex items-stretch gap-3" onClick={(e) => e.stopPropagation()}>
       <div
         className="bg-[#2d2f3b] border-2 border-[#1e1f29] w-[800px] h-[650px] flex flex-col p-4 shadow-2xl text-white rounded-md"
-        onClick={(e) => e.stopPropagation()}
       >
         {/* ヘッダー: アイコン + タイトル */}
         <div className="flex flex-col gap-2 mb-4 pb-2 border-b border-gray-600">
@@ -726,13 +726,16 @@ export function QuestEditorModal({
             placeholder="クエストの詳細な説明を入力してください..."
           />
           {!readOnly && repeatEditor}
-          {rankingSection && (
-            <div className="flex flex-col gap-2">
-              <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">ランキング</div>
-              {rankingSection}
-            </div>
-          )}
         </div>
+      </div>
+
+      {/* ランキングパネル: メインダイアログの右にフローティング表示 */}
+      {rankingSection && (
+        <div className="bg-[#2d2f3b] border-2 border-[#1e1f29] w-[280px] flex flex-col p-4 shadow-2xl text-white rounded-md overflow-y-auto">
+          <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">ランキング</div>
+          {rankingSection}
+        </div>
+      )}
       </div>
     </div>
   )
