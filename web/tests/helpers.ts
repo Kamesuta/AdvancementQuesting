@@ -1,6 +1,7 @@
 import { expect, type Page } from '@playwright/test'
 
-export const MOCK = 'http://localhost:3001'
+const MOCK_PORT = process.env.MOCK_PORT ?? '3001'
+export const MOCK = `http://localhost:${MOCK_PORT}`
 
 export const EDITOR_UUID = 'bbbbbbbb-cccc-dddd-eeee-ffffffffffff'
 export const PLAYER_UUID = 'cccccccc-dddd-eeee-ffff-aaaaaaaaaaaa'

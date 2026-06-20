@@ -3,8 +3,9 @@ import { defineConfig, devices } from '@playwright/test'
 // worktree 並列開発用ポートオフセット
 // 例: PORT_OFFSET=100 で mock=3101, vite=5274
 const OFFSET = parseInt(process.env.PORT_OFFSET ?? '0', 10)
-// globalSetup でも同じ値を使えるよう環境変数に書き戻す
+// globalSetup・テストヘルパーでも同じ値を使えるよう環境変数に書き戻す
 process.env.PORT_OFFSET = String(OFFSET)
+process.env.MOCK_PORT = String(3001 + OFFSET)
 const MOCK_PORT = 3001 + OFFSET
 const VITE_PORT = 5174 + OFFSET
 const TEST_DB = `./mock-server/db/test${OFFSET || ''}.db`
