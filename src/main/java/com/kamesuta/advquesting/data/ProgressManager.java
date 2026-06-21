@@ -241,7 +241,7 @@ public class ProgressManager {
     public int claimReward(String playerUuid, int questId) throws SQLException {
         Quest quest = questManager.findById(questId);
         if (quest == null) return 0;
-        if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return 0;
+        // claimReward は完了済みの報酬受取なので prerequisite チェック不要
 
         ProgressDao.ProgressRecord rec = progressDao.findByPlayerAndQuest(playerUuid, questId);
         if (rec == null) return 0;

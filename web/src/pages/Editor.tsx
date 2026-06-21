@@ -201,13 +201,12 @@ export default function EditorPage() {
     return set
   }, [progressData])
 
-  // C-3: 報酬受取可能クエストID集合 (完了済みかつ未受取、もしくは pendingRewards > 0)
+  // C-3: 報酬受取可能クエストID集合 (サーバーの rewardClaimable を信頼する)
   const rewardClaimableQuestIds = useMemo(() => {
     const set = new Set<string>()
     for (const p of progressData ?? []) {
-      const hasPending = (p.pendingRewards ?? 0) > 0
-      const normalClaimable = p.rewardClaimable ?? (p.completed && !p.rewardClaimed)
-      if (hasPending || normalClaimable) set.add(String(p.questId))
+      const claimable = p.rewardClaimable ?? (p.completed && !p.rewardClaimed)
+      if (claimable) set.add(String(p.questId))
     }
     return set
   }, [progressData])
@@ -1421,11 +1420,9 @@ export default function EditorPage() {
               if (viewAs) return undefined // view-as 中は操作不可 (読み取り専用)
               const p = progressData?.find((pr) => String(pr.questId) === editingNodeId)
               if (!p) return undefined
-              // 繰り返しクエスト: pendingRewards が残っていれば受取可能
-              // 通常クエスト: 完了済みかつ未受取なら受取可能
-              const hasPending = (p.pendingRewards ?? 0) > 0
-              const normalClaimable = p.completed && !p.rewardClaimed
-              if (!hasPending && !normalClaimable) return undefined
+              // rewardClaimed=true なら受取済み (pendingRewards が残っていても Java 側が 403 を返す)
+              const claimable = p.rewardClaimable ?? (p.completed && !p.rewardClaimed)
+              if (!claimable) return undefined
               return async () => {
                 await progressApi.claim(editingNodeId!)
                 await queryClient.invalidateQueries({ queryKey: ['progress'] })

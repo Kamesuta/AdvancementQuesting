@@ -9,7 +9,7 @@
  */
 
 import { test, expect } from '@playwright/test'
-import { loginAs, openQuestModal, setProgress, PLAYER_UUID, MOCK } from './helpers.js'
+import { loginAs, openQuestModal, setProgress, resetProgress, PLAYER_UUID, MOCK } from './helpers.js'
 
 const OTHER_UUID = 'dddddddd-eeee-ffff-aaaa-bbbbbbbbbbbb'
 const OTHER_NAME = 'Notch'
@@ -276,4 +276,29 @@ test('VA-MIG-3: 移行を2回実行しても二重に積まれない (冪等)', 
   await page.request.post(`${MOCK}/api/test/migrate-rewards`)
   const second = await (await page.request.get(`${MOCK}/api/players/${OTHER_UUID}/rewards`)).json()
   expect(second.items.length).toBe(first.items.length)
+})
+
+test('C3: 報酬受取後に🎁バッジがマップから消える', async ({ page }) => {
+  await resetProgress(page)
+  // quest 1 を完了済み・未受取状態にセット
+  await setProgress(page, PLAYER_UUID, 1, { completed: true, rewardClaimed: false })
+  await loginAs(page, 'demo-player-token')
+
+  // マップに🎁バッジが表示されること
+  const node1 = page.locator('[data-node-id="1"]')
+  await expect(node1).toBeVisible({ timeout: 5000 })
+  const badge = node1.locator('[title="報酬を受け取れます"]')
+  await expect(badge).toBeVisible({ timeout: 5000 })
+
+  // モーダルを開いて「報酬を受け取る」ボタンをクリック
+  await openQuestModal(page, '1')
+  await expect(page.getByText('★ 報酬を受け取る')).toBeVisible({ timeout: 3000 })
+  await page.getByText('★ 報酬を受け取る').click()
+
+  // ボタンが消えるのを待つ (API完了・queryClient更新後)
+  await expect(page.getByText('★ 報酬を受け取る')).not.toBeVisible({ timeout: 5000 })
+
+  // モーダルを閉じて🎁バッジがマップから消えることを確認
+  await page.getByRole('button', { name: '閉じる' }).last().click()
+  await expect(badge).not.toBeVisible({ timeout: 5000 })
 })
