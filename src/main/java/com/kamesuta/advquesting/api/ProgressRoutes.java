@@ -129,6 +129,7 @@ public class ProgressRoutes {
         m.put("completedAt", r.completedAt() != null ? r.completedAt() : "");
         m.put("completedCount", r.completedCount());
         m.put("pendingRewards", r.pendingRewards());
+        m.put("rewardClaimable", r.completed() && !r.rewardClaimed());
         return m;
     }
 
