@@ -9,3 +9,9 @@ web-url: "http://localhost:8080"
 # ポイント報酬を付与する際に実行するコンソールコマンド
 # {player} はプレイヤー名、{amount} は付与するポイント数に置換される
 point-command: "scoreboard players add {player} point {amount}"
+
+# Web UI のサイトタイトル
+site-title: "AdvancementQuesting"
+
+# Web UI のファビコンに使用するアイテム名 (Minecraft アイテム ID)
+site-favicon-item: "writable_book"
