@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { MousePointer2, Move, Plus, ArrowRight, Trash2, List, Settings, User, RotateCw } from 'lucide-react'
+import { MousePointer2, Move, Plus, ArrowRight, Trash2, List, Settings, User, RotateCw, CheckSquare } from 'lucide-react'
 import type { EditorNode, EditorEdge, ToolMode, Vec2, ItemSelectorConfig, EditingTaskReward } from '@/components/editor/types.js'
 import { INITIAL_NODES, INITIAL_EDGES, TASK_TYPES } from '@/components/editor/constants.js'
 import { ItemIcon } from '@/components/editor/ItemIcon.js'
@@ -1634,8 +1634,8 @@ function NodeEl({ node, mode, draggingNode, linkStartNode, linkHoverNode, setHov
 
       {/* C-2: checkmark のみクエストバッジ (右上) */}
       {isCheckmarkOnly && (
-        <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#1a3a2a] border border-[#4add9e] z-10 flex items-center justify-center" title="チェックマーク条件のみ" style={{ fontSize: '11px' }}>
-          ☑
+        <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#1a3a2a] border border-[#4add9e] z-10 flex items-center justify-center" title="チェックマーク条件のみ">
+          <CheckSquare size={11} strokeWidth={2.5} className="text-[#4add9e]" />
         </div>
       )}
 
