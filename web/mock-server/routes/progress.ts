@@ -15,7 +15,37 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
     .from(playerProgress)
     .where(eq(playerProgress.playerUuid, req.playerUuid!))
 
-  res.json(rows)
+  const allQuests = await db.select().from(quests)
+  const questById = new Map(allQuests.map((q) => [q.id, q]))
+
+  const enriched = rows.map((row) => {
+    const quest = questById.get(row.questId)
+    const conditions = Array.isArray(quest?.conditions) ? (quest!.conditions as Array<Record<string, unknown>>) : []
+
+    const progress = Array.isArray(row.progress) ? (row.progress as Array<Record<string, unknown>>) : []
+
+    // stat/scoreboard 条件に required を補完し、current がなければモック値を付与
+    const enrichedProgress = progress.map((p) => {
+      const cond = conditions.find((c) => c['id'] === p['conditionId'])
+      if (!cond) return p
+      const type = cond['type'] as string
+      if (type === 'stat' || type === 'scoreboard') {
+        const required = type === 'stat' ? Number(cond['count'] ?? 1) : Number(cond['score'] ?? 1)
+        const current = p['current'] != null ? Number(p['current']) : (p['completed'] ? required : Math.floor(required * 0.3))
+        return { ...p, current, required }
+      }
+      if (type === 'item' || type === 'delivery') {
+        const required = Number(cond['count'] ?? 1)
+        const current = p['current'] != null ? Number(p['current']) : (p['completed'] ? required : 0)
+        return { ...p, current, required }
+      }
+      return p
+    })
+
+    return { ...row, progress: enrichedProgress }
+  })
+
+  res.json(enriched)
 })
 
 // GET /api/progress/:questId

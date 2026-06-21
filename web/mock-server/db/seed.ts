@@ -224,6 +224,19 @@ async function seed() {
     completedAt: new Date(Date.now() - 1800000),
   }).onConflictDoNothing()
 
+  // Alex: スコアボードテストクエストを進行中 (D-2: stat/scoreboard 進捗バー表示テスト)
+  await db.insert(playerProgress).values({
+    playerUuid: PLAYER_UUID,
+    questId: QUEST_ID_7,
+    progress: [
+      { conditionId: 'cond-7-sb', completed: false, current: 30, required: 100 },
+    ],
+    completed: false,
+    rewardClaimed: false,
+    startedAt: new Date(Date.now() - 3600000),
+    completedAt: null,
+  }).onConflictDoNothing()
+
   console.log(`Seeded ${questData.length} quests`)
   console.log(`[editor] token: ${EDITOR_TOKEN}`)
   console.log(`[player] token: ${PLAYER_TOKEN}`)
