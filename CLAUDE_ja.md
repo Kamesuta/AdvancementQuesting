@@ -48,7 +48,7 @@ cd mc-tests && npm run dev:console
 
 ## git worktree による並列開発
 
-`git worktree add` で worktree を作成後、`/setup-worktree` で初回セットアップを実行する（`web/public` シンボリックリンク作成・`npm install`）。
+worktree でセッションを開始したら、最初に `/setup-worktree` を実行する。`web/public` のシンボリックリンク作成と `npm install` を行う。何度実行しても安全（冪等）。
 
 `PORT_OFFSET` でポート番号をずらすことで、複数の worktree を同時起動できる。
 

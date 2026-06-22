@@ -49,7 +49,7 @@ cd mc-tests && npm run dev:console
 
 ## Parallel Development with git worktree
 
-After creating a worktree with `git worktree add`, run `/setup-worktree` to complete initialization (symlinks `web/public`, runs `npm install`).
+When starting a session in a worktree, run `/setup-worktree` first. It symlinks `web/public` and runs `npm install`. Safe to run multiple times.
 
 `PORT_OFFSET` shifts all port numbers so multiple worktrees can run simultaneously.
 

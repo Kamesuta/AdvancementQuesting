@@ -1,20 +1,17 @@
 ---
 name: setup-worktree
-description: Set up a newly created worktree (symlink web/public, npm install). Use when the user says "worktreeのセットアップ", "setup worktree", or just created a worktree and needs it initialized.
+description: Set up a newly created worktree (symlink web/public, npm install). Use when the user says "worktreeのセットアップ", "setup worktree", or just started a session in a worktree and hasn't run setup yet.
 ---
 
 # setup-worktree skill
 
-Runs initial setup for a worktree that was just created with `git worktree add`.
+Runs initial setup for the current worktree. Safe to run multiple times (idempotent).
+If run on the main repo, it prints a message and exits without doing anything.
 
 ## Steps
 
-1. Ask the user for the worktree path if not already provided.
-
-2. Run:
+Run:
 
 ```powershell
-& "${CLAUDE_SKILL_DIR}/scripts/setup-worktree.ps1" -WorktreePath "path/to/worktree"
+& "${CLAUDE_SKILL_DIR}/scripts/setup-worktree.ps1"
 ```
-
-3. Tell the user the setup is complete.
