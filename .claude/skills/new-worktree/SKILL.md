@@ -14,7 +14,7 @@ Creates a new git worktree and sets it up for development.
 2. Run:
 
 ```powershell
-& "scripts\new-worktree.ps1" -Branch "feature/xxx"
+& "${CLAUDE_SKILL_DIR}/scripts/new-worktree.ps1" -Branch "feature/xxx"
 ```
 
 3. Tell the user the worktree path shown in the output.

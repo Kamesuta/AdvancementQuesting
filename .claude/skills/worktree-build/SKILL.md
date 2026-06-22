@@ -15,7 +15,7 @@ Does NOT copy to `run/` — deploy via the test-console UI.
 2. Run:
 
 ```powershell
-& "scripts\worktree-build.ps1" -TaskName "タスク名（日本語）"
+& "${CLAUDE_SKILL_DIR}/scripts/worktree-build.ps1" -TaskName "タスク名（日本語）"
 ```
 
 3. On success, tell the user: "ビルド完了。test-console のデプロイドロップダウンから反映できます。"
