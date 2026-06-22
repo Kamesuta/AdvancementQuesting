@@ -26,41 +26,17 @@ After completing each implementation unit, do all of the following before moving
 
 ## Testing
 
-Use frontend tests for anything verifiable in the browser alone; use Java tests for anything that requires a live Minecraft server.
+Use frontend tests for anything verifiable in the browser alone; use Java tests for anything that requires a live Minecraft server. Add a test for every UI change and every bug fix.
 
 ### Frontend Tests
 
-Playwright E2E tests. The mock server and Vite start automatically — no manual setup needed.
-
-- **Run**: `cd web && npm run test:e2e` (UI mode: `npm run test:e2e:ui`)
+- **Run**: `cd web && npm run test:e2e`
 - **Test code**: `web/tests/`
-- **Add a test here for every UI change.**
-- **Add a test for every bug fix.** A bug fix with no test reproducing the scenario is not "done".
-- Use `--headed` when debugging flaky or visually-dependent tests.
-
-Ports:
-
-| Service | Port |
-|---|---|
-| Mock backend (API) | 3001 |
-| Vite frontend | 5174 |
 
 ### Java Tests (mc-tests)
 
-A real Paper server starts, a Mineflayer bot logs in, and Playwright verifies that the Web UI correctly reflects in-game actions.
-
 - **Run**: `cd mc-tests && npm run test`
 - **Test code**: `mc-tests/tests/`
-- **Add a test here for every Minecraft-side code change.**
-- Setup code (Paper JAR download, server start/stop) is in `mc-tests/setup.js`.
-
-Ports:
-
-| Service | Port |
-|---|---|
-| Minecraft server | 25599 |
-| Plugin API (Web UI) | 8090 |
-| RCON | 25598 |
 
 ## Test Console (Manual Testing)
 
@@ -70,12 +46,6 @@ Browser-based console for manual testing. Requires Minecraft server running.
 cd mc-tests && npm run dev:console
 # → http://localhost:7890/test-console
 ```
-
-Ports:
-
-| Service | main (offset=0) | wt2 (offset=100) |
-|---|---|---|
-| Test Console | 7890 | 7990 |
 
 ## Parallel Development with git worktree
 
