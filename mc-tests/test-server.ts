@@ -302,6 +302,7 @@ interface WorktreeEntry {
   path: string
   branch: string
   builtAt: string | null
+  taskName: string | null
   isBase: boolean
 }
 
@@ -327,15 +328,18 @@ function listWorktrees(): WorktreeEntry[] {
       if (currentPath) {
         const infoPath = join(currentPath, 'target', 'WORKTREE_INFO.json')
         let builtAt: string | null = null
+        let taskName: string | null = null
         try {
           const info = JSON.parse(readFileSync(infoPath, 'utf8'))
           builtAt = info.builtAt ?? null
+          taskName = info.taskName ?? null
         } catch { /* no WORKTREE_INFO.json */ }
 
         entries.push({
           path: currentPath,
           branch: currentBranch || 'HEAD',
           builtAt,
+          taskName,
           isBase: resolve(currentPath) === resolve(BASE_DIR),
         })
       }

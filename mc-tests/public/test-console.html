@@ -361,7 +361,8 @@ async function loadWorktrees() {
     for (const wt of list) {
       const opt = document.createElement('option')
       opt.value = wt.path
-      opt.textContent = `${wt.branch}${wt.isBase ? ' ★' : ''}  [${formatTime(wt.builtAt)}]`
+      const label = wt.taskName ?? wt.branch
+      opt.textContent = `${label}${wt.isBase ? ' ★' : ''}  [${formatTime(wt.builtAt)}]`
       sel.appendChild(opt)
     }
   } catch (e) { toast('worktree取得失敗: ' + e.message) }
