@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory)]
-    [string]$Branch
+    [string]$WorktreePath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -8,16 +8,11 @@ $ErrorActionPreference = 'Stop'
 $base = $env:CLAUDE_PROJECT_DIR
 if (-not $base) { $base = (git rev-parse --show-toplevel) }
 $base = Resolve-Path $base
-
-$wtName = "AdvancementQuesting-" + ($Branch -replace "[^a-zA-Z0-9]", "-")
-$wtPath = Join-Path (Split-Path $base) $wtName
-
-# Create worktree
-git worktree add $wtPath -b $Branch
+$wtPath = Resolve-Path $WorktreePath
 
 # Symlink web/public (atlas images are gitignored)
-$publicTarget = Join-Path $base "web\public"
-$publicLink = Join-Path $wtPath "web\public"
+$publicTarget = Join-Path $base "web/public"
+$publicLink = Join-Path $wtPath "web/public"
 if (Test-Path $publicLink) { Remove-Item -Recurse -Force $publicLink }
 New-Item -ItemType SymbolicLink -Path $publicLink -Target $publicTarget | Out-Null
 
@@ -26,4 +21,4 @@ Push-Location (Join-Path $wtPath "web")
 try { npm install } finally { Pop-Location }
 
 Write-Host ""
-Write-Host "Worktree ready: $wtPath" -ForegroundColor Green
+Write-Host "Worktree setup complete: $wtPath" -ForegroundColor Green
