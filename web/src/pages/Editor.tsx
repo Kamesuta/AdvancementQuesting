@@ -1497,20 +1497,40 @@ export default function EditorPage() {
               onTouchStart={() => setLongPressPopover(null)}
             />
             <div
-              className="fixed z-[9999] bg-[#1e1f29] border border-gray-600 rounded shadow-2xl p-3 max-w-[240px]"
+              className="fixed z-[9999] bg-black/90 border-2 border-purple-700 text-white p-3 shadow-xl max-w-[280px]"
               style={{
                 bottom: window.innerHeight - longPressPopover.y + 12,
-                left: Math.max(8, Math.min(longPressPopover.x - 120, window.innerWidth - 248)),
+                left: Math.max(8, Math.min(longPressPopover.x - 140, window.innerWidth - 296)),
               }}
               data-testid="longtap-reward-popover"
             >
-              <div className="text-xs font-bold text-blue-300 mb-1.5 truncate">{longPressPopover.node.title}</div>
-              <div className="text-[11px] text-gray-500 mb-1.5">🎁 報酬</div>
-              <div className="flex flex-wrap gap-1.5">
-                {longPressPopover.node.rewards.map((r) => (
-                  <NodeRewardChip key={r.id} reward={r} />
+              <div className="font-bold text-blue-300 text-lg mb-1">{longPressPopover.node.title}</div>
+              {longPressPopover.node.subtitle && (
+                <div className="text-gray-400 text-xs italic mb-2">{longPressPopover.node.subtitle}</div>
+              )}
+              <div className="text-sm space-y-1">
+                {longPressPopover.node.tasks?.map((task) => (
+                  <div key={task.id} className="text-gray-300 flex items-center gap-1">
+                    <span className="text-gray-500">
+                      {TASK_TYPES.find((t) => t.id === task.type)?.icon ?? '•'}
+                    </span>
+                    {getDisplayText(task, 'task', lang)}
+                  </div>
                 ))}
+                {(!longPressPopover.node.tasks || longPressPopover.node.tasks.length === 0) && (
+                  <div className="text-gray-500 text-xs">タスクがありません</div>
+                )}
               </div>
+              {longPressPopover.node.rewards && longPressPopover.node.rewards.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-gray-700">
+                  <div className="text-[11px] text-gray-500 mb-1.5">🎁 報酬</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {longPressPopover.node.rewards.map((r) => (
+                      <NodeRewardChip key={r.id} reward={r} />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </>,
           document.body,

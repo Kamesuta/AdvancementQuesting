@@ -512,7 +512,7 @@ test('スマホ: ポップオーバーのオーバーレイをタップすると
   await simulateLongPress(page, '[data-node-id="1"]')
   await expect(page.locator('[data-testid="longtap-reward-popover"]')).toBeVisible({ timeout: 2000 })
 
-  // オーバーレイをクリックして閉じる
-  await page.mouse.click(10, 10)
+  // ポップオーバーの外 (右下) をクリックして閉じる
+  await page.mouse.click(370, 600)
   await expect(page.locator('[data-testid="longtap-reward-popover"]')).not.toBeVisible()
 })
