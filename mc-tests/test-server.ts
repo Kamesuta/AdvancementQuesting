@@ -163,8 +163,12 @@ const mcConsoleClients: Response[] = []
 const mcConsoleLog: string[] = []
 let mcProc: ChildProcess | null = null
 
-function mcStatus() {
-  return mcProc ? 'running' : 'stopped'
+interface McStatusInfo { status: 'running' | 'stopped'; external: boolean }
+
+async function mcStatusInfo(): Promise<McStatusInfo> {
+  if (mcProc) return { status: 'running', external: false }
+  const reachable = await isMcApiReachable()
+  return { status: reachable ? 'running' : 'stopped', external: reachable }
 }
 
 function pushMcLog(line: string) {
@@ -183,9 +187,8 @@ app.get('/api/mc/console-stream', async (req: Request, res: Response) => {
   res.flushHeaders()
   // send backlog
   for (const line of mcConsoleLog) res.write(`data: ${JSON.stringify(line)}\n\n`)
-  // detect externally-started server
-  const status = mcProc ? 'running' : (await isMcApiReachable() ? 'running' : 'stopped')
-  res.write(`event: status\ndata: ${JSON.stringify(status)}\n\n`)
+  const info = await mcStatusInfo()
+  res.write(`event: status\ndata: ${JSON.stringify(info)}\n\n`)
   mcConsoleClients.push(res)
   req.on('close', () => {
     const i = mcConsoleClients.indexOf(res)
@@ -193,14 +196,15 @@ app.get('/api/mc/console-stream', async (req: Request, res: Response) => {
   })
 })
 
-function broadcastMcStatus() {
-  const data = JSON.stringify(mcStatus())
+async function broadcastMcStatus() {
+  const info = await mcStatusInfo()
+  const data = JSON.stringify(info)
   for (const res of [...mcConsoleClients]) res.write(`event: status\ndata: ${data}\n\n`)
 }
 
 app.get('/api/mc/status', async (_req: Request, res: Response) => {
-  const status = mcProc ? 'running' : (await isMcApiReachable() ? 'running' : 'stopped')
-  res.json({ status, apiPort: API_PORT })
+  const info = await mcStatusInfo()
+  res.json({ ...info, apiPort: API_PORT })
 })
 
 async function isMcApiReachable(): Promise<boolean> {
@@ -214,7 +218,7 @@ app.post('/api/mc/start', async (_req: Request, res: Response) => {
   if (mcProc) { res.json({ ok: true, already: true }); return }
   // Server might already be running from a previous session
   if (await isMcApiReachable()) {
-    broadcastMcStatus()
+    void broadcastMcStatus()
     res.json({ ok: true, already: true })
     return
   }
@@ -248,15 +252,15 @@ app.post('/api/mc/start', async (_req: Request, res: Response) => {
     proc.on('exit', (code) => {
       clearTimeout(timeout)
       mcProc = null
-      broadcastMcStatus()
+      void broadcastMcStatus()
       if (!resolved) reject(new Error(`サーバーが起動前に終了 (code=${code})`))
     })
   })
-  broadcastMcStatus()
+  void broadcastMcStatus()
 
   try {
     await startPromise
-    broadcastMcStatus()
+    void broadcastMcStatus()
     // Tell clients to reload the quest iframe now that the plugin API is up
     for (const c of [...mcConsoleClients]) c.write(`event: reload-iframe\ndata: {}\n\n`)
     res.json({ ok: true })

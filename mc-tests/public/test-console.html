@@ -429,10 +429,16 @@ function pushMcLog(line) {
   for (const fn of mcLogListeners) fn(line)
 }
 
-function renderMcStatus(status, apiPort) {
+function renderMcStatus(info, apiPort) {
+  // info may be a string (legacy) or {status, external}
+  const status = (typeof info === 'object' && info !== null) ? info.status : info
+  const external = (typeof info === 'object' && info !== null) ? info.external : false
   const dot = $('mc-dot')
   dot.className = status === 'running' ? 'running' : (status === 'starting' ? 'starting' : '')
-  $('mc-status-text').textContent = { running: 'サーバー稼働中', stopped: 'サーバー停止中', starting: 'サーバー起動中…' }[status] || status
+  const labels = { stopped: 'サーバー停止中', starting: 'サーバー起動中…' }
+  $('mc-status-text').textContent = status === 'running'
+    ? (external ? '外部起動中 (RCON経由で操作可)' : 'サーバー稼働中')
+    : (labels[status] || status)
   $('btn-mc-start').style.display = status === 'running' ? 'none' : ''
   $('btn-mc-stop').style.display = status === 'running' ? '' : 'none'
   $('btn-mc-start').disabled = status === 'starting'
@@ -479,6 +485,7 @@ loadWorktrees()
 // Set iframe to MC server directly (no proxy)
 api('/api/mc/status').then(d => {
   mcApiPort = d.apiPort ?? 8080
+  renderMcStatus(d)
   setIframeSrc('/')
 }).catch(() => setIframeSrc('/'))
 </script>
