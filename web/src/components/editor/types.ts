@@ -11,7 +11,7 @@
  * add_link: ノード→ノードで依存エッジを引く
  * delete  : ノードクリックで削除。editor=全ノード / player提案中=提案ドラフトのみ
  */
-export type ToolMode = 'select' | 'move' | 'add_node' | 'add_link' | 'delete'
+export type ToolMode = 'select' | 'move' | 'add_node' | 'add_link' | 'delete' | 'add_comment'
 
 /** 2D座標 */
 export interface Vec2 {
@@ -77,6 +77,17 @@ export interface EditorNode {
   repeat?: EditorRepeat
   /** クエストの公開状態 ('public' | 'hidden' | 'draft' | 'proposed') */
   status?: string
+}
+
+/** マップ上に配置するコメントブロック (UE5ブループリントのコメント枠に相当) */
+export interface EditorComment {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  title: string
+  color: string
 }
 
 /** クエスト間の依存エッジ */

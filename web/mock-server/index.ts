@@ -11,6 +11,7 @@ import progressRoutes from './routes/progress.js'
 import playerRoutes from './routes/players.js'
 import proposalRoutes from './routes/proposals.js'
 import configRoutes from './routes/config.js'
+import commentRoutes, { resetComments } from './routes/comments.js'
 import { playerSessions, authCodes, questProposals, proposalVotes, quests, playerProgress, questCompletions, rewardClaims } from './db/schema.js'
 import { eq } from 'drizzle-orm'
 import { insertQuestRewards } from './rewardLog.js'
@@ -39,6 +40,7 @@ app.use('/api/progress', progressRoutes)
 app.use('/api/players', playerRoutes)
 app.use('/api/proposals', proposalRoutes)
 app.use('/api/config', configRoutes)
+app.use('/api/comments', commentRoutes)
 
 // ヘルスチェック
 app.get('/api/health', (_req, res) => {
@@ -228,6 +230,12 @@ app.post('/api/test/add-reward-claim', async (req, res) => {
   }
   await insertQuestRewards(playerUuid, playerName, questId, questTitle, rewards,
     new Date().toISOString(), source ?? 'claim')
+  res.json({ ok: true })
+})
+
+// テスト用: コメントブロックをすべて削除
+app.post('/api/test/reset-comments', (_req, res) => {
+  resetComments()
   res.json({ ok: true })
 })
 

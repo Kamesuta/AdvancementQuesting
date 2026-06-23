@@ -1,6 +1,7 @@
 package com.kamesuta.advquesting;
 
 import com.kamesuta.advquesting.api.AuthRoutes;
+import com.kamesuta.advquesting.api.CommentRoutes;
 import com.kamesuta.advquesting.api.ConfigRoutes;
 import com.kamesuta.advquesting.api.NotificationRoutes;
 import com.kamesuta.advquesting.api.PlayerRoutes;
@@ -11,6 +12,7 @@ import com.kamesuta.advquesting.api.QuestRoutes;
 import com.kamesuta.advquesting.api.RankingRoutes;
 import com.kamesuta.advquesting.command.QuestCommand;
 import com.kamesuta.advquesting.command.QuestEditCommand;
+import com.kamesuta.advquesting.data.CommentManager;
 import com.kamesuta.advquesting.data.ProgressManager;
 import com.kamesuta.advquesting.data.QuestManager;
 import com.kamesuta.advquesting.data.RepeatScheduler;
@@ -60,6 +62,7 @@ public final class AdvancementQuesting extends JavaPlugin {
         RewardClaimDao rewardClaimDao = new RewardClaimDao(db);
         ProposalDao proposalDao = new ProposalDao(db);
         QuestManager questManager = new QuestManager(getDataFolder());
+        CommentManager commentManager = new CommentManager(getDataFolder());
         ProgressManager progressManager = new ProgressManager(this, questManager, progressDao, completionDao, rewardClaimDao);
 
         // 既存の完了済み進捗をクリアログへ初回移行する (冪等)。
@@ -118,6 +121,7 @@ public final class AdvancementQuesting extends JavaPlugin {
         new AuthRoutes(sessionDao, authCodeDao).register(app);
         new ConfigRoutes(this).register(app);
         new QuestRoutes(questManager, sessionDao).register(app);
+        new CommentRoutes(commentManager, sessionDao).register(app);
         new ProgressRoutes(progressDao, progressManager, sessionDao).register(app);
         new RankingRoutes(completionDao, sessionDao).register(app);
         new PlayerProfileRoutes(completionDao, rewardClaimDao, questManager).register(app);

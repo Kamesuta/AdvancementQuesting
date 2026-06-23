@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { MousePointer2, Move, Plus, ArrowRight, Trash2, List, Settings, User, RotateCw, CheckSquare } from 'lucide-react'
-import type { EditorNode, EditorEdge, EditorReward, ToolMode, Vec2, ItemSelectorConfig, EditingTaskReward } from '@/components/editor/types.js'
+import { MousePointer2, Move, Plus, ArrowRight, Trash2, List, Settings, User, RotateCw, CheckSquare, MessageSquare } from 'lucide-react'
+import type { EditorNode, EditorEdge, EditorReward, EditorComment, ToolMode, Vec2, ItemSelectorConfig, EditingTaskReward } from '@/components/editor/types.js'
 import { INITIAL_NODES, INITIAL_EDGES, TASK_TYPES } from '@/components/editor/constants.js'
 import { ItemIcon } from '@/components/editor/ItemIcon.js'
 import { ToolButton } from '@/components/editor/ToolButton.js'
@@ -20,6 +20,8 @@ import { PlayerRewardsPanel } from '@/components/activity/PlayerRewardsPanel.js'
 import { useEditor } from '@/contexts/EditorContext.js'
 import { proposalsApi } from '@/api/proposals.js'
 import { questsApi } from '@/api/quests.js'
+import { commentsApi } from '@/api/comments.js'
+import { CommentBlockEl, COMMENT_COLORS } from '@/components/editor/CommentBlockEl.js'
 import { progressApi } from '@/api/progress.js'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/api/auth.js'
@@ -152,11 +154,12 @@ function ModeToast({ label, visible }: { label: string; visible: boolean }) {
 // ---------------------------------------------------------------------------
 
 const modeLabel: Record<ToolMode, string> = {
-  select:   '選択',
-  move:     '移動',
-  add_node: 'クエスト追加',
-  add_link: '依存関係の作成',
-  delete:   '削除モード',
+  select:      '選択',
+  move:        '移動',
+  add_node:    'クエスト追加',
+  add_link:    '依存関係の作成',
+  delete:      '削除モード',
+  add_comment: 'コメントを追加',
 }
 
 /** クリックと判定する最大移動距離 (px) */
@@ -321,6 +324,18 @@ export default function EditorPage() {
   // ---- ホバー ----
   const [hoveredNode, setHoveredNode] = useState<EditorNode | null>(null)
   const [mousePos, setMousePos] = useState<Vec2>({ x: 0, y: 0 })
+
+  // ---- コメントブロック ----
+  const [comments, setComments] = useState<EditorComment[]>([])
+  // ドラッグ作成中のプレビュー矩形 (ワールド座標)
+  const [commentDraft, setCommentDraft] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+  const commentDraftStartRef = useRef<{ wx: number; wy: number } | null>(null)
+  // コメントブロックの移動ドラッグ
+  const [draggingCommentId, setDraggingCommentId] = useState<string | null>(null)
+  const commentDragOffsetRef = useRef<Vec2>({ x: 0, y: 0 })
+  // コメントブロックのリサイズ
+  const [resizingCommentId, setResizingCommentId] = useState<string | null>(null)
+  const commentResizeStartRef = useRef<{ mouseX: number; mouseY: number; origW: number; origH: number } | null>(null)
 
   // ---- ロングタップ (スマホ用報酬ポップオーバー) ----
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -570,6 +585,11 @@ export default function EditorPage() {
     toastTimerRef.current = setTimeout(() => setToastVisible(false), 3000)
   }
 
+  // コメントブロック初期ロード
+  useEffect(() => {
+    commentsApi.list().then(setComments).catch(() => {})
+  }, [])
+
   // ---------------------------------------------------------------------------
   // ログアウト
   // ---------------------------------------------------------------------------
@@ -663,16 +683,53 @@ export default function EditorPage() {
       }
     } else if (mode === 'add_link') {
       setLinkStartNode(null)
+    } else if (mode === 'add_comment' && isEditor) {
+      const rect = canvasRef.current!.getBoundingClientRect()
+      const wx = e.clientX - rect.left - pan.x
+      const wy = e.clientY - rect.top - pan.y
+      commentDraftStartRef.current = { wx, wy }
+      setCommentDraft({ x: wx, y: wy, w: 0, h: 0 })
     }
   }
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!canvasRef.current) return
     const rect = canvasRef.current.getBoundingClientRect()
-    if (isPanning && !draggingNode) setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y })
+    if (isPanning && !draggingNode && !draggingCommentId && !resizingCommentId) setPan({ x: e.clientX - panStart.x, y: e.clientY - panStart.y })
     const wx = e.clientX - rect.left - pan.x
     const wy = e.clientY - rect.top - pan.y
     setMousePos({ x: wx, y: wy })
+
+    // コメントブロック: ドラッグ作成プレビュー
+    if (mode === 'add_comment' && commentDraftStartRef.current) {
+      const sx = commentDraftStartRef.current.wx
+      const sy = commentDraftStartRef.current.wy
+      setCommentDraft({
+        x: Math.min(sx, wx),
+        y: Math.min(sy, wy),
+        w: Math.abs(wx - sx),
+        h: Math.abs(wy - sy),
+      })
+    }
+
+    // コメントブロック: 移動ドラッグ
+    if (draggingCommentId) {
+      const off = commentDragOffsetRef.current
+      setComments(prev => prev.map(c =>
+        c.id === draggingCommentId ? { ...c, x: wx - off.x, y: wy - off.y } : c
+      ))
+    }
+
+    // コメントブロック: リサイズ
+    if (resizingCommentId && commentResizeStartRef.current) {
+      const { mouseX, mouseY, origW, origH } = commentResizeStartRef.current
+      const newW = Math.max(80, origW + (e.clientX - mouseX))
+      const newH = Math.max(60, origH + (e.clientY - mouseY))
+      setComments(prev => prev.map(c =>
+        c.id === resizingCommentId ? { ...c, width: newW, height: newH } : c
+      ))
+    }
+
     if (draggingNode && mode === 'move') {
       const tx = wx - dragOffset.x
       const ty = wy - dragOffset.y
@@ -696,6 +753,43 @@ export default function EditorPage() {
   }
 
   const handleMouseUp = (e: React.MouseEvent) => {
+    // コメントブロック: ドラッグ作成確定
+    if (mode === 'add_comment' && commentDraftStartRef.current && commentDraft) {
+      commentDraftStartRef.current = null
+      const { x, y, w, h } = commentDraft
+      setCommentDraft(null)
+      if (w > 30 && h > 30 && isEditor) {
+        const newComment: Omit<EditorComment, 'id'> = {
+          x, y, width: w, height: h,
+          title: 'コメント',
+          color: COMMENT_COLORS[0].hex,
+        }
+        commentsApi.create(newComment).then(created => {
+          setComments(prev => [...prev, created])
+        }).catch(() => {})
+      }
+      return
+    }
+
+    // コメントブロック: 移動確定
+    if (draggingCommentId) {
+      const c = comments.find(c => c.id === draggingCommentId)
+      if (c) commentsApi.update(c.id, { x: c.x, y: c.y, width: c.width, height: c.height, title: c.title, color: c.color }).catch(() => {})
+      setDraggingCommentId(null)
+      setIsPanning(false)
+      return
+    }
+
+    // コメントブロック: リサイズ確定
+    if (resizingCommentId) {
+      const c = comments.find(c => c.id === resizingCommentId)
+      if (c) commentsApi.update(c.id, { x: c.x, y: c.y, width: c.width, height: c.height, title: c.title, color: c.color }).catch(() => {})
+      setResizingCommentId(null)
+      commentResizeStartRef.current = null
+      setIsPanning(false)
+      return
+    }
+
     if (isPanning) setIsPanning(false)
     if (draggingNode) { setDraggingNode(null); return }
 
@@ -1178,12 +1272,13 @@ export default function EditorPage() {
   // ツールバー表示ルール
   // ---------------------------------------------------------------------------
 
-  const showAddNode    = isEditor || proposalMode
-  const showAddLink    = isEditor || proposalMode
-  const showMove       = isEditor || proposalMode
-  const showDelete     = isEditor || proposalMode
+  const showAddNode     = isEditor || proposalMode
+  const showAddLink     = isEditor || proposalMode
+  const showMove        = isEditor || proposalMode
+  const showDelete      = isEditor || proposalMode
+  const showAddComment  = isEditor
   const showRewardTable = false
-  const showSettings   = isEditor
+  const showSettings    = isEditor
 
   // ---------------------------------------------------------------------------
   // レンダリング
@@ -1291,7 +1386,8 @@ export default function EditorPage() {
           {showMove     && <ToolButton icon={Move}       active={mode === 'move'}     onClick={() => changeMode('move')}     tooltip="移動" />}
           {showAddNode  && <ToolButton icon={Plus}       active={mode === 'add_node'} onClick={() => changeMode('add_node')} tooltip="クエストを追加" />}
           {showAddLink  && <ToolButton icon={ArrowRight} active={mode === 'add_link'} onClick={() => changeMode('add_link')} tooltip="依存関係を追加" />}
-          {showDelete   && <ToolButton icon={Trash2}     active={mode === 'delete'}   onClick={() => changeMode('delete')}   tooltip="削除" />}
+          {showDelete      && <ToolButton icon={Trash2}        active={mode === 'delete'}      onClick={() => changeMode('delete')}      tooltip="削除" />}
+          {showAddComment  && <ToolButton icon={MessageSquare} active={mode === 'add_comment'} onClick={() => changeMode('add_comment')} tooltip="コメントを追加" />}
 
           <div className="flex-grow" />
 
@@ -1348,6 +1444,7 @@ export default function EditorPage() {
             mode === 'move' && !draggingNode ? 'cursor-grab'
             : draggingNode ? 'cursor-grabbing'
             : mode === 'add_node' ? 'cursor-crosshair'
+            : mode === 'add_comment' ? 'cursor-crosshair'
             : 'cursor-default'
           }`}
           style={{
@@ -1374,6 +1471,61 @@ export default function EditorPage() {
             style={{ transform: `translate(${pan.x}px, ${pan.y}px)`, transformOrigin: '0 0' }}
             className="absolute inset-0 w-full h-full"
           >
+            {/* コメントブロック (ノードより背面) */}
+            {comments.map(comment => (
+              <CommentBlockEl
+                key={comment.id}
+                comment={comment}
+                mode={mode}
+                onMoveStart={(e) => {
+                  if ('button' in e && (e as React.MouseEvent).button !== 0) return
+                  e.stopPropagation()
+                  const rect = canvasRef.current?.getBoundingClientRect()
+                  const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX
+                  const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY
+                  const wx = clientX - (rect?.left ?? 0) - panRef.current.x
+                  const wy = clientY - (rect?.top ?? 0) - panRef.current.y
+                  commentDragOffsetRef.current = { x: wx - comment.x, y: wy - comment.y }
+                  setDraggingCommentId(comment.id)
+                }}
+                onResizeStart={(e) => {
+                  e.stopPropagation()
+                  const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX
+                  const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY
+                  commentResizeStartRef.current = { mouseX: clientX, mouseY: clientY, origW: comment.width, origH: comment.height }
+                  setResizingCommentId(comment.id)
+                }}
+                onDelete={() => {
+                  commentsApi.delete(comment.id).then(() => {
+                    setComments(prev => prev.filter(c => c.id !== comment.id))
+                  }).catch(() => {})
+                }}
+                onEdit={(updates) => {
+                  const updated = { ...comment, ...updates }
+                  commentsApi.update(comment.id, { x: updated.x, y: updated.y, width: updated.width, height: updated.height, title: updated.title, color: updated.color }).then(saved => {
+                    setComments(prev => prev.map(c => c.id === saved.id ? saved : c))
+                  }).catch(() => {})
+                }}
+              />
+            ))}
+
+            {/* コメントブロック: ドラッグ作成中のプレビュー */}
+            {commentDraft && commentDraft.w > 5 && commentDraft.h > 5 && (
+              <div
+                className="absolute pointer-events-none"
+                style={{
+                  left: commentDraft.x,
+                  top: commentDraft.y,
+                  width: commentDraft.w,
+                  height: commentDraft.h,
+                  border: `2px dashed ${COMMENT_COLORS[0].hex}`,
+                  background: `${COMMENT_COLORS[0].hex}22`,
+                  borderRadius: 6,
+                  zIndex: 1,
+                }}
+              />
+            )}
+
             {/* エッジ */}
             <svg className="absolute inset-0 overflow-visible pointer-events-none z-0">
               {edges.map((edge) => {
