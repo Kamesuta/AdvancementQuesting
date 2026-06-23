@@ -35,6 +35,11 @@ function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, su
     enabled: !!localStorage.getItem('token'),
   })
 
+  const { data: config } = useQuery({
+    queryKey: ['config'],
+    queryFn: () => configApi.get(),
+  })
+
   const role = me?.role ?? 'player'
   const isEditor = role === 'editor'
   // editor が play モードの場合は編集機能を無効化
@@ -55,7 +60,7 @@ function Nav({ proposalMode, setProposalMode, proposalCount, submitProposals, su
           className="font-bold text-sm px-2 tracking-tight shrink-0"
           style={{ color: '#2a1f0e', textShadow: '1px 1px 0 rgba(255,255,255,0.3)' }}
         >
-          AdvancementQuesting
+          {config?.title ?? 'AdvancementQuesting'}
         </span>
 
         {/* editor: モード切り替えトグル (アイコンのみ、スマホ対応) */}
