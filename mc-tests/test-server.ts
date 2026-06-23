@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
 import { execSync, spawn, type ChildProcess } from 'node:child_process'
-import { existsSync, readdirSync, copyFileSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, copyFileSync, readFileSync, utimesSync } from 'node:fs'
 import express, { Request, Response } from 'express'
 
 import { rcon } from './tests/helpers.js'
@@ -419,6 +419,8 @@ app.post('/api/worktrees/deploy', (req: Request, res: Response) => {
       return
     }
     copyFileSync(src, dest)
+    const now = new Date()
+    utimesSync(dest, now, now)
     res.json({ ok: true, deployedFrom: worktreePath, jar, dest })
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) })
