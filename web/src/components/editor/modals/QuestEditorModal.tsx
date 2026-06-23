@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Plus, Trash2, X, RotateCw } from 'lucide-react'
+import { Plus, Trash2, X, RotateCw, Sparkles } from 'lucide-react'
 import type { EditorNode, ItemSelectorConfig, EditingTaskReward } from '../types.js'
 import { TASK_TYPES, REWARD_TYPES } from '../constants.js'
 import { ItemIcon } from '../ItemIcon.js'
 import { getDisplayText } from '../utils.js'
+import { AiAssistPanel } from './AiAssistPanel.js'
 import { useIsMobile } from '@/hooks/useIsMobile.js'
 import { useMcLang } from '@/hooks/useMcData.js'
 import type { ConditionProgress } from '@/types/progress.js'
@@ -75,6 +76,7 @@ export function QuestEditorModal({
   const [delivering, setDelivering] = useState(false)
   const [checkingConditionId, setCheckingConditionId] = useState<string | null>(null)
   const [togglingStatus, setTogglingStatus] = useState(false)
+  const [showAiPanel, setShowAiPanel] = useState(false)
   const isMobile = useIsMobile()
   const { data: lang } = useMcLang()
 
@@ -153,6 +155,33 @@ export function QuestEditorModal({
       {togglingStatus ? '...' : questStatus === 'public' ? '🌐 公開中' : '🔒 非公開'}
     </button>
   ) : null
+
+  // AIアシスト: タスク/報酬の文脈からクエスト名+説明を提案する (editor のみ)
+  const adoptSuggestion = (title: string, description: string) => {
+    updateNode({ ...node, title, description })
+    setShowAiPanel(false)
+  }
+  const aiToggleButton = !readOnly ? (
+    <button
+      data-testid="ai-toggle-btn"
+      onClick={() => setShowAiPanel((v) => !v)}
+      className="text-xs px-3 py-1 border font-bold shrink-0 flex items-center gap-1"
+      style={showAiPanel
+        ? { color: '#1f1a0a', backgroundColor: '#E8C830', borderColor: '#8B7020', cursor: 'pointer' }
+        : { color: '#E8C830', backgroundColor: 'transparent', borderColor: '#8B7020', cursor: 'pointer' }}
+      title="AIにクエスト名・説明を提案させる"
+    >
+      <Sparkles size={14} /> AI
+    </button>
+  ) : null
+  const aiPanel = (
+    <AiAssistPanel
+      tasks={(node.tasks ?? []).map((t) => getDisplayText(t, 'task', lang))}
+      rewards={(node.rewards ?? []).map((r) => getDisplayText(r, 'reward', lang))}
+      onAdopt={adoptSuggestion}
+      onClose={() => setShowAiPanel(false)}
+    />
+  )
 
   // ---------------------------------------------------------------------------
   // 共通サブコンポーネント
@@ -473,6 +502,7 @@ export function QuestEditorModal({
                 placeholder="補足説明..."
               />
             </div>
+            {aiToggleButton}
             {statusToggleButton}
             <button onClick={close} aria-label="閉じる" className="text-gray-400 p-1 shrink-0">
               <X size={24} />
@@ -609,6 +639,13 @@ export function QuestEditorModal({
             </div>
           )}
         </div>
+
+        {/* AIアシスト: 全画面オーバーレイ */}
+        {showAiPanel && (
+          <div className="absolute inset-0 z-50 bg-[#2d2f3b] p-3 flex flex-col">
+            {aiPanel}
+          </div>
+        )}
       </div>
     )
   }
@@ -649,6 +686,7 @@ export function QuestEditorModal({
                 placeholder="補足説明..."
               />
             </div>
+            {aiToggleButton}
             {statusToggleButton}
             <button onClick={close} aria-label="閉じる" className="text-gray-400 hover:text-red-400 shrink-0">
               <X size={28} />
@@ -782,6 +820,13 @@ export function QuestEditorModal({
           <div className="flex-1 overflow-y-auto min-h-0">
             {rankingSection}
           </div>
+        </div>
+      )}
+
+      {/* AIアシストパネル: メインダイアログの右にフローティング表示 */}
+      {showAiPanel && (
+        <div className="bg-[#2d2f3b] border-2 border-[#1e1f29] w-[300px] h-[650px] flex flex-col p-4 shadow-2xl text-white rounded-md">
+          {aiPanel}
         </div>
       )}
       </div>

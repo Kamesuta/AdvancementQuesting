@@ -14,3 +14,9 @@ point-command: "scoreboard players add {player} point {amount}"
 site-title: "AdvancementQuesting"
 
 # カスタムファビコン: plugins/AdvancementQuesting/favicon.png を置くと自動的に使用される
+
+# クエスト作成補助AI（OpenAI）の設定
+# APIキーを空のままにするとAI提案機能は無効になる（/api/ai/quest-suggest は503を返す）
+openai-api-key: ""
+# 使用するOpenAIモデル
+openai-model: "gpt-5.4-nano"

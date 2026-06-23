@@ -1,5 +1,6 @@
 package com.kamesuta.advquesting;
 
+import com.kamesuta.advquesting.api.AiRoutes;
 import com.kamesuta.advquesting.api.AuthRoutes;
 import com.kamesuta.advquesting.api.ConfigRoutes;
 import com.kamesuta.advquesting.api.NotificationRoutes;
@@ -118,6 +119,7 @@ public final class AdvancementQuesting extends JavaPlugin {
         new AuthRoutes(sessionDao, authCodeDao).register(app);
         new ConfigRoutes(this).register(app);
         new QuestRoutes(questManager, sessionDao).register(app);
+        new AiRoutes(this, sessionDao).register(app);
         new ProgressRoutes(progressDao, progressManager, sessionDao).register(app);
         new RankingRoutes(completionDao, sessionDao).register(app);
         new PlayerProfileRoutes(completionDao, rewardClaimDao, questManager).register(app);
