@@ -25,6 +25,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/api/auth.js'
 import type { Quest, Condition, Reward } from '@/types/quest.js' // Reward は rewards 変換で使用
 import { useMcLang } from '@/hooks/useMcData.js'
+import { DashboardPage } from './Dashboard.js'
 
 // ---------------------------------------------------------------------------
 // Quest API ↔ EditorNode 変換
@@ -203,6 +204,7 @@ function NodeRewardChip({ reward }: { reward: EditorReward }) {
 export default function EditorPage() {
   const { isEditor: isEditorRole, viewMode, me } = useAuth()
   const { viewAs, setViewAs } = useViewAs()
+  const [mainTab, setMainTab] = useState<'map' | 'stats'>('map')
   // view-as 中は他人の進捗を「閲覧専用」で見るモード。編集・操作は一切させない。
   const isEditor = isEditorRole && viewMode === 'edit' && !viewAs
   const queryClient = useQueryClient()
@@ -1217,6 +1219,40 @@ export default function EditorPage() {
             </button>
           </div>
         )}
+        {/* ===== タブバー ===== */}
+        <div
+          className="shrink-0 flex border-b-2 border-black"
+          style={{ backgroundColor: '#8B8B8B', fontFamily: '"Courier New", Courier, monospace' }}
+        >
+          {(['map', 'stats'] as const).map((tab) => {
+            const active = mainTab === tab
+            return (
+              <button
+                key={tab}
+                onClick={() => setMainTab(tab)}
+                className="px-3 py-1 text-xs font-bold"
+                style={{
+                  color: active ? '#0a1f0a' : '#2a2a2a',
+                  backgroundColor: active ? '#C6C6C6' : '#9B9B9B',
+                  borderTopColor: active ? 'white' : '#7B7B7B',
+                  borderLeftColor: active ? 'white' : '#7B7B7B',
+                  borderBottomColor: active ? '#C6C6C6' : '#555',
+                  borderRightColor: active ? '#555' : '#3B3B3B',
+                  borderWidth: '2px',
+                  borderStyle: 'solid',
+                  marginBottom: active ? '-2px' : '0',
+                  position: 'relative',
+                  zIndex: active ? 1 : 0,
+                }}
+              >
+                {tab === 'map' ? '🗺 マップ' : '📊 統計'}
+              </button>
+            )
+          })}
+        </div>
+        {mainTab === 'stats' ? (
+          <DashboardPage />
+        ) : (
         <div className="flex-1 relative flex overflow-hidden min-h-0">
         {/* ===== view-as パネル: デスクトップ=右上フローティング / モバイル=下部ドロワー ===== */}
         {viewAs && (
@@ -1666,6 +1702,7 @@ export default function EditorPage() {
           <LoginModal close={() => setShowLoginModal(false)} />
         )}
         </div>
+        )}
       </div>
     </ViewAsContext.Provider>
   )
