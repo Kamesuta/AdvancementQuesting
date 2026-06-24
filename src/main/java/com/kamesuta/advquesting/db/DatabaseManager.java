@@ -17,6 +17,9 @@ public class DatabaseManager {
         try (Statement st = conn.createStatement()) {
             st.execute("PRAGMA journal_mode=WAL");
             st.execute("PRAGMA foreign_keys=ON");
+            // リロード時に別接続がWALチェックポイント中でもメインスレッドが無限ブロックしないよう
+            // 3秒待ってタイムアウトする。SQLiteExceptionが投げられ適切にハンドリングできる。
+            st.execute("PRAGMA busy_timeout=3000");
         }
         migrate();
     }
