@@ -31,9 +31,10 @@ import { useMcLang } from '@/hooks/useMcData.js'
 // ---------------------------------------------------------------------------
 
 function questToNode(q: Quest): EditorNode {
-  const sid = String(q.id)
+  const sid = q.id
   return {
     id: sid,
+    questlineId: q.questlineId,
     x: q.mapPosition?.x ?? 100,
     y: q.mapPosition?.y ?? 100,
     icon: q.icon ?? 'stone',
@@ -92,8 +93,7 @@ function nodeToApiBody(node: EditorNode, edgeList: EditorEdge[]) {
     mapPosition: { x: node.x, y: node.y },
     prerequisites: edgeList
       .filter((e) => e.target === node.id)
-      .map((e) => parseInt(e.source, 10))
-      .filter((n) => !isNaN(n)),
+      .map((e) => e.source),
     conditions,
     rewards,
     repeat: node.repeat && node.repeat.type !== 'none' ? node.repeat : null,
@@ -104,7 +104,7 @@ function questsToEdges(quests: Quest[]): EditorEdge[] {
   const edges: EditorEdge[] = []
   for (const q of quests) {
     for (const prereqId of (q.prerequisites ?? [])) {
-      edges.push({ id: `e-${prereqId}-${q.id}`, source: String(prereqId), target: String(q.id) })
+      edges.push({ id: `e-${prereqId}-${q.id}`, source: prereqId, target: q.id })
     }
   }
   return edges
@@ -214,24 +214,34 @@ export default function EditorPage() {
   } = useEditor()
 
   // ---- クエストデータをAPIから取得 ----
-  const { data: questsData } = useQuery({
+  const { data: questsDataRaw } = useQuery({
     queryKey: ['quests'],
     queryFn: () => questsApi.list(),
   })
+  // モックサーバーは INTEGER id を返すため、文字列に正規化する
+  const questsData = useMemo(
+    () => questsDataRaw?.map((q) => ({ ...q, id: String(q.id), prerequisites: (q.prerequisites ?? []).map(String) })),
+    [questsDataRaw],
+  )
 
   // ---- 進捗 (達成済み表示用) ----
   // view-as 中は対象プレイヤーの進捗、通常時は自分の進捗を取得する。
-  const { data: progressData } = useQuery({
+  const { data: progressDataRaw } = useQuery({
     queryKey: viewAs ? ['progress', viewAs.playerUuid] : ['progress'],
     queryFn: () => viewAs ? progressApi.listByPlayer(viewAs.playerUuid) : progressApi.list(),
     enabled: !!viewAs || !!me,
   })
+  // モックサーバーは INTEGER questId を返すため、文字列に正規化する
+  const progressData = useMemo(
+    () => progressDataRaw?.map((p) => ({ ...p, questId: String(p.questId) })),
+    [progressDataRaw],
+  )
 
   // 完了したクエストID集合 (questId は文字列で保持してノードIDと比較)
   const completedQuestIds = useMemo(() => {
     const set = new Set<string>()
     for (const p of progressData ?? []) {
-      if (p.completed) set.add(String(p.questId))
+      if (p.completed) set.add(p.questId)
     }
     return set
   }, [progressData])
@@ -241,7 +251,7 @@ export default function EditorPage() {
     const set = new Set<string>()
     for (const p of progressData ?? []) {
       const claimable = p.rewardClaimable ?? (p.completed && !p.rewardClaimed)
-      if (claimable) set.add(String(p.questId))
+      if (claimable) set.add(p.questId)
     }
     return set
   }, [progressData])
@@ -542,7 +552,7 @@ export default function EditorPage() {
       // 既存提案の編集を更新
       for (const [proposalId, node] of myProposalEdits) {
         const p = existingProposals?.find((p: any) => p.id === proposalId) as any
-        if (p) await questsApi.update(p.questId, nodeToApiBody(node, proposalEdges))
+        if (p) await questsApi.update(p.questlineId ?? '00000000', p.questId, nodeToApiBody(node, proposalEdges))
       }
       queryClient.invalidateQueries({ queryKey: ['proposals'] })
       setProposalNodes([])
@@ -590,27 +600,27 @@ export default function EditorPage() {
     if (saving) return
     setSaving(true)
     try {
-      const existingIds = new Set((questsData ?? []).map((q) => String(q.id)))
+      const existingIds = new Set((questsData ?? []).map((q) => q.id))
       const currentNodeIds = new Set(nodes.map((n) => n.id))
       await Promise.all(
         (questsData ?? [])
-          .filter((q) => q.status !== 'proposed' && !currentNodeIds.has(String(q.id)))
-          .map((q) => questsApi.delete(q.id))
+          .filter((q) => q.status !== 'proposed' && !currentNodeIds.has(q.id))
+          .map((q) => questsApi.delete(q.questlineId, q.id))
       )
       await Promise.all(nodes.map(async (node) => {
         // hidden クエストはステータスを保持、新規ノードはデフォルト public
         const savedStatus: 'hidden' | 'public' = node.status === 'hidden' ? 'hidden' : 'public'
         const body = { ...nodeToApiBody(node, edges), status: savedStatus }
         if (existingIds.has(node.id)) {
-          await questsApi.update(parseInt(node.id, 10), body)
+          await questsApi.update(node.questlineId ?? '00000000', node.id, body)
         } else {
-          await questsApi.create({ ...body, category: null, customButtons: [] })
+          await questsApi.create({ ...body, questlineId: node.questlineId ?? '00000000', category: null, customButtons: [] })
         }
       }))
       // 既存提案の編集を保存
       for (const [proposalId, node] of myProposalEdits) {
         const p = existingProposals?.find((p: any) => p.id === proposalId) as any
-        if (p) await questsApi.update(p.questId, nodeToApiBody(node, edges))
+        if (p) await questsApi.update(p.questlineId ?? '00000000', p.questId, nodeToApiBody(node, edges))
       }
       if (myProposalEdits.size > 0) {
         queryClient.invalidateQueries({ queryKey: ['proposals'] })
@@ -1269,15 +1279,15 @@ export default function EditorPage() {
                 {viewAsTab === 'activity' ? (
                   <RecentActivityPanel
                     playerUuid={viewAs.playerUuid}
-                    onSelectQuest={(questId) => {
-                      if (nodes.some((n) => n.id === String(questId))) setEditingNodeId(String(questId))
+                    onSelectQuest={(_questlineId, questId) => {
+                      if (nodes.some((n) => n.id === questId)) setEditingNodeId(questId)
                     }}
                   />
                 ) : (
                   <PlayerRewardsPanel
                     playerUuid={viewAs.playerUuid}
-                    onSelectQuest={(questId) => {
-                      if (nodes.some((n) => n.id === String(questId))) setEditingNodeId(String(questId))
+                    onSelectQuest={(_questlineId, questId) => {
+                      if (nodes.some((n) => n.id === questId)) setEditingNodeId(questId)
                     }}
                   />
                 )}
@@ -1554,34 +1564,37 @@ export default function EditorPage() {
             openItemSelector={setItemSelectorConfig}
             openTaskRewardEditor={setEditingTaskReward}
             readOnly={isReadOnlyNode(editingNodeId!)}
-            conditionProgress={progressData?.find((pr) => String(pr.questId) === editingNodeId)?.progress}
-            pendingRewards={progressData?.find((pr) => String(pr.questId) === editingNodeId)?.pendingRewards}
-            completedAt={progressData?.find((pr) => String(pr.questId) === editingNodeId)?.completedAt}
+            conditionProgress={progressData?.find((pr) => pr.questId === editingNodeId)?.progress}
+            pendingRewards={progressData?.find((pr) => pr.questId === editingNodeId)?.pendingRewards}
+            completedAt={progressData?.find((pr) => pr.questId === editingNodeId)?.completedAt}
             claimReward={(() => {
               if (viewAs) return undefined // view-as 中は操作不可 (読み取り専用)
-              const p = progressData?.find((pr) => String(pr.questId) === editingNodeId)
+              const p = progressData?.find((pr) => pr.questId === editingNodeId)
               if (!p) return undefined
               // rewardClaimed=true なら受取済み (pendingRewards が残っていても Java 側が 403 を返す)
               const claimable = p.rewardClaimable ?? (p.completed && !p.rewardClaimed)
               if (!claimable) return undefined
+              const qlId = questsData?.find((q) => q.id === editingNodeId)?.questlineId ?? '00000000'
               return async () => {
-                await progressApi.claim(editingNodeId!)
+                await progressApi.claim(qlId, editingNodeId!)
                 await queryClient.refetchQueries({ queryKey: ['progress'] })
                 showToast('報酬を受け取りました！')
               }
             })()}
             onCheckmarkComplete={!viewAs && isReadOnlyNode(editingNodeId!) && me ? async (conditionId) => {
-              await progressApi.completeCondition(editingNodeId!, conditionId)
+              const qlId = questsData?.find((q) => q.id === editingNodeId)?.questlineId ?? '00000000'
+              await progressApi.completeCondition(qlId, editingNodeId!, conditionId)
               await queryClient.invalidateQueries({ queryKey: ['progress'] })
             } : undefined}
             onDeliver={(() => {
               if (viewAs) return undefined // view-as 中は操作不可 (読み取り専用)
               const node = editingNodeId ? nodes.find((n) => n.id === editingNodeId) : null
               const hasDelivery = node?.tasks?.some((t) => t.type === 'delivery')
-              const p = progressData?.find((pr) => String(pr.questId) === editingNodeId)
+              const p = progressData?.find((pr) => pr.questId === editingNodeId)
               if (!hasDelivery || !isReadOnlyNode(editingNodeId!) || !me || p?.completed) return undefined
               return async () => {
-                const result = await progressApi.deliver(editingNodeId!)
+                const qlId = questsData?.find((q) => q.id === editingNodeId)?.questlineId ?? '00000000'
+                const result = await progressApi.deliver(qlId, editingNodeId!)
                 await queryClient.invalidateQueries({ queryKey: ['progress'] })
                 const deliveredCount = Object.keys(result.delivered ?? {}).length
                 if (deliveredCount > 0) {
@@ -1593,16 +1606,16 @@ export default function EditorPage() {
             })()}
             questStatus={(() => {
               if (!isEditor || !editingNodeId) return undefined
-              const q = questsData?.find((q) => String(q.id) === editingNodeId)
+              const q = questsData?.find((q) => q.id === editingNodeId)
               return q?.status
             })()}
             onToggleStatus={(() => {
               if (!isEditor || !editingNodeId) return undefined
-              const q = questsData?.find((q) => String(q.id) === editingNodeId)
+              const q = questsData?.find((q) => q.id === editingNodeId)
               if (!q || q.status === 'proposed') return undefined
               return async () => {
                 const newStatus = q.status === 'public' ? 'hidden' : 'public'
-                await questsApi.update(q.id, { status: newStatus })
+                await questsApi.update(q.questlineId, q.id, { status: newStatus })
                 await queryClient.invalidateQueries({ queryKey: ['quests'] })
                 showToast(newStatus === 'public' ? '公開しました' : '非公開にしました')
               }

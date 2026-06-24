@@ -420,7 +420,7 @@ test('スマホ: ランキングが表示される (RK-7)', async ({ page }) => 
   await page.request.post(`${MOCK}/api/test/reset-completions`)
   // 他テストの汚染を避け quest 1 を非繰り返しに戻す (繰り返しだと見出しがセグメントになる)
   await page.request.post(`${MOCK}/api/auth/quick`, { data: { token: 'demo-editor-token' } })
-  await page.request.put(`${MOCK}/api/quests/1`, {
+  await page.request.put(`${MOCK}/api/quests/00000000/1`, {
     headers: { Authorization: 'Bearer demo-editor-token' },
     data: { repeat: null },
   })

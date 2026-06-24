@@ -31,7 +31,7 @@ async function setRepeat(
   repeat: { type: string } | null,
 ) {
   await page.request.post(`${MOCK}/api/auth/quick`, { data: { token: 'demo-editor-token' } })
-  await page.request.put(`${MOCK}/api/quests/${questId}`, {
+  await page.request.put(`${MOCK}/api/quests/00000000/${questId}`, {
     headers: { Authorization: 'Bearer demo-editor-token' },
     data: { repeat },
   })

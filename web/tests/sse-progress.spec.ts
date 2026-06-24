@@ -254,7 +254,7 @@ test('報酬受取: ボタンを押すとAPI呼び出し後ボタンが消える
   await claimBtn.click()
   await expect(claimBtn).not.toBeVisible({ timeout: 5000 })
 
-  const res = await page.request.get(`${MOCK}/api/progress/1`, {
+  const res = await page.request.get(`${MOCK}/api/progress/00000000/1`, {
     headers: { Authorization: 'Bearer demo-editor-token' },
   })
   expect((await res.json()).rewardClaimed).toBe(true)
