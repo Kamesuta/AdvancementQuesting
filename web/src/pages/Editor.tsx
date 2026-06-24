@@ -340,7 +340,7 @@ export default function EditorPage() {
   } | null>(null)
   // コメントブロックのリサイズ
   const [resizingCommentId, setResizingCommentId] = useState<string | null>(null)
-  const commentResizeStartRef = useRef<{ mouseX: number; mouseY: number; origW: number; origH: number } | null>(null)
+  const commentResizeStartRef = useRef<{ mouseX: number; mouseY: number; origX: number; origY: number; origW: number; origH: number; dir: import('@/components/editor/CommentBlockEl.js').ResizeDir } | null>(null)
 
   // ---- ロングタップ (スマホ用報酬ポップオーバー) ----
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -756,11 +756,15 @@ export default function EditorPage() {
 
     // コメントブロック: リサイズ
     if (resizingCommentId && commentResizeStartRef.current) {
-      const { mouseX, mouseY, origW, origH } = commentResizeStartRef.current
-      const newW = Math.max(80, origW + (e.clientX - mouseX))
-      const newH = Math.max(60, origH + (e.clientY - mouseY))
+      const { mouseX, mouseY, origX, origY, origW, origH, dir } = commentResizeStartRef.current
+      const dx = e.clientX - mouseX
+      const dy = e.clientY - mouseY
+      let newX = origX, newY = origY, newW = origW, newH = origH
+      if (dir === 'right' || dir === 'se') newW = Math.max(80, origW + dx)
+      if (dir === 'bottom' || dir === 'se') newH = Math.max(60, origH + dy)
+      if (dir === 'left') { newW = Math.max(80, origW - dx); newX = origX + origW - newW }
       setComments(prev => prev.map(c =>
-        c.id === resizingCommentId ? { ...c, width: newW, height: newH } : c
+        c.id === resizingCommentId ? { ...c, x: newX, y: newY, width: newW, height: newH } : c
       ))
     }
 
@@ -914,11 +918,15 @@ export default function EditorPage() {
 
     // コメントブロック: リサイズ
     if (resizingCommentId && commentResizeStartRef.current) {
-      const { mouseX, mouseY, origW, origH } = commentResizeStartRef.current
-      const newW = Math.max(80, origW + (t.clientX - mouseX))
-      const newH = Math.max(60, origH + (t.clientY - mouseY))
+      const { mouseX, mouseY, origX, origY, origW, origH, dir } = commentResizeStartRef.current
+      const dx = t.clientX - mouseX
+      const dy = t.clientY - mouseY
+      let newX = origX, newY = origY, newW = origW, newH = origH
+      if (dir === 'right' || dir === 'se') newW = Math.max(80, origW + dx)
+      if (dir === 'bottom' || dir === 'se') newH = Math.max(60, origH + dy)
+      if (dir === 'left') { newW = Math.max(80, origW - dx); newX = origX + origW - newW }
       setComments((prev) => prev.map((c) =>
-        c.id === resizingCommentId ? { ...c, width: newW, height: newH } : c))
+        c.id === resizingCommentId ? { ...c, x: newX, y: newY, width: newW, height: newH } : c))
       return
     }
 
@@ -1568,11 +1576,11 @@ export default function EditorPage() {
                   }
                   setDraggingCommentId(comment.id)
                 }}
-                onResizeStart={(e) => {
+                onResizeStart={(e, dir) => {
                   e.stopPropagation()
                   const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX
                   const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY
-                  commentResizeStartRef.current = { mouseX: clientX, mouseY: clientY, origW: comment.width, origH: comment.height }
+                  commentResizeStartRef.current = { mouseX: clientX, mouseY: clientY, origX: comment.x, origY: comment.y, origW: comment.width, origH: comment.height, dir }
                   setResizingCommentId(comment.id)
                 }}
                 onDelete={() => {
