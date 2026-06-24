@@ -19,19 +19,22 @@ function withAlpha(hex: string, alpha: number): string {
 interface CommentBlockElProps {
   comment: EditorComment
   mode: string
+  /** 編集可能か (editor かつ編集モードのときのみ true) */
+  editable: boolean
   /** ヘッダードラッグ開始時 (移動) */
   onMoveStart: (e: React.MouseEvent | React.TouchEvent) => void
   /** リサイズハンドルドラッグ開始時 */
   onResizeStart: (e: React.MouseEvent | React.TouchEvent) => void
   /** 削除モードでクリック */
   onDelete: () => void
-  /** タイトル・カラー変更完了 */
+  /** タイトル変更完了 */
   onEdit: (updates: Partial<Pick<EditorComment, 'title' | 'color'>>) => void
 }
 
 export function CommentBlockEl({
   comment,
   mode,
+  editable,
   onMoveStart,
   onResizeStart,
   onDelete,
@@ -39,38 +42,35 @@ export function CommentBlockEl({
 }: CommentBlockElProps) {
   const [editingTitle, setEditingTitle] = useState(false)
   const [draftTitle, setDraftTitle] = useState(comment.title)
-  const [showColorPicker, setShowColorPicker] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // 編集可能 かつ 削除モードでない場合だけ各種操作を許可
+  const canEdit = editable && mode !== 'delete'
 
   const handleHeaderDoubleClick = useCallback((e: React.MouseEvent) => {
-    if (mode === 'delete') return
+    if (!canEdit) return
     e.stopPropagation()
     setDraftTitle(comment.title)
     setEditingTitle(true)
     setTimeout(() => inputRef.current?.select(), 0)
-  }, [mode, comment.title])
+  }, [canEdit, comment.title])
 
   const commitTitle = useCallback(() => {
     setEditingTitle(false)
-    if (draftTitle.trim() !== comment.title) {
-      onEdit({ title: draftTitle.trim() || comment.title })
+    if (draftTitle !== comment.title) {
+      onEdit({ title: draftTitle })
     }
   }, [draftTitle, comment.title, onEdit])
 
-  const handleColorClick = useCallback((e: React.MouseEvent, hex: string) => {
-    e.stopPropagation()
-    setShowColorPicker(false)
-    onEdit({ color: hex })
-  }, [onEdit])
-
   const handleClick = useCallback((e: React.MouseEvent) => {
-    if (mode === 'delete') {
+    if (editable && mode === 'delete') {
       e.stopPropagation()
       onDelete()
     }
-  }, [mode, onDelete])
+  }, [editable, mode, onDelete])
 
   const color = comment.color || '#4A4A4A'
+  const isDeleteMode = editable && mode === 'delete'
 
   return (
     <div
@@ -89,78 +89,48 @@ export function CommentBlockEl({
       onClick={handleClick}
       data-comment-id={comment.id}
     >
-      {/* ヘッダー (ドラッグハンドル) */}
+      {/* ヘッダー (ドラッグハンドル / タイトル — 複数行対応で内容に応じて伸長) */}
       <div
-        className="flex items-center gap-2 px-2 cursor-grab active:cursor-grabbing overflow-hidden"
+        className={`flex items-start gap-2 px-2 py-1 overflow-hidden ${canEdit ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
         style={{
           background: color,
           borderRadius: '4px 4px 0 0',
-          height: 28,
-          userSelect: 'none',
+          minHeight: 28,
         }}
-        onMouseDown={mode !== 'delete' ? onMoveStart : undefined}
-        onTouchStart={mode !== 'delete' ? onMoveStart : undefined}
+        onMouseDown={canEdit ? onMoveStart : undefined}
+        onTouchStart={canEdit ? onMoveStart : undefined}
         onDoubleClick={handleHeaderDoubleClick}
       >
         {editingTitle ? (
-          <input
+          <textarea
             ref={inputRef}
-            className="flex-1 bg-transparent text-white text-sm font-bold outline-none min-w-0"
+            className="flex-1 bg-transparent text-white text-sm font-bold outline-none min-w-0 resize-none overflow-hidden leading-snug"
+            rows={Math.max(1, draftTitle.split('\n').length)}
             value={draftTitle}
             onChange={e => setDraftTitle(e.target.value)}
             onBlur={commitTitle}
             onKeyDown={e => {
-              if (e.key === 'Enter') commitTitle()
-              if (e.key === 'Escape') { setEditingTitle(false); setDraftTitle(comment.title) }
+              // Enter は改行 / Escape でキャンセル / Ctrl(Cmd)+Enter で確定
+              if (e.key === 'Escape') { e.preventDefault(); setEditingTitle(false); setDraftTitle(comment.title) }
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); commitTitle() }
             }}
             onMouseDown={e => e.stopPropagation()}
             onTouchStart={e => e.stopPropagation()}
           />
         ) : (
-          <span className="flex-1 text-white text-sm font-bold truncate">{comment.title || 'コメント'}</span>
-        )}
-
-        {/* カラーボタン */}
-        {mode !== 'delete' && !editingTitle && (
-          <div className="relative flex-shrink-0">
-            <button
-              className="w-4 h-4 rounded-full border border-white/50 cursor-pointer"
-              style={{ background: color }}
-              onMouseDown={e => e.stopPropagation()}
-              onClick={e => { e.stopPropagation(); setShowColorPicker(v => !v) }}
-              title="色を変更"
-            />
-            {showColorPicker && (
-              <div
-                className="absolute top-6 right-0 flex gap-1 p-1.5 rounded shadow-lg z-50"
-                style={{ background: '#2a2a2a', border: '1px solid #555' }}
-                onMouseDown={e => e.stopPropagation()}
-              >
-                {COMMENT_COLORS.map(c => (
-                  <button
-                    key={c.hex}
-                    className="w-5 h-5 rounded-full border-2 cursor-pointer transition-transform hover:scale-110"
-                    style={{
-                      background: c.hex,
-                      borderColor: c.hex === color ? 'white' : 'transparent',
-                    }}
-                    title={c.label}
-                    onClick={e => handleColorClick(e, c.hex)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+          <span className="flex-1 text-white text-sm font-bold whitespace-pre-wrap break-words leading-snug">
+            {comment.title || 'コメント'}
+          </span>
         )}
 
         {/* 削除モード表示 */}
-        {mode === 'delete' && (
-          <span className="text-red-300 text-xs font-bold">✕</span>
+        {isDeleteMode && (
+          <span className="text-red-300 text-xs font-bold flex-shrink-0 mt-0.5">✕</span>
         )}
       </div>
 
       {/* リサイズハンドル (右下) */}
-      {mode !== 'delete' && (
+      {canEdit && (
         <div
           className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
           style={{ touchAction: 'none' }}
@@ -175,7 +145,7 @@ export function CommentBlockEl({
       )}
 
       {/* 削除モード時のオーバーレイ */}
-      {mode === 'delete' && (
+      {isDeleteMode && (
         <div
           className="absolute inset-0 cursor-pointer"
           style={{ borderRadius: 4, background: 'rgba(220,50,50,0.15)' }}

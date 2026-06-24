@@ -1544,6 +1544,7 @@ export default function EditorPage() {
                 key={comment.id}
                 comment={comment}
                 mode={mode}
+                editable={isEditor}
                 onMoveStart={(e) => {
                   if ('button' in e && (e as React.MouseEvent).button !== 0) return
                   e.stopPropagation()
