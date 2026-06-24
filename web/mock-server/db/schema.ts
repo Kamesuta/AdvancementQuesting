@@ -1,7 +1,16 @@
 import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
+export const questlines = sqliteTable('questlines', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull().default('メインクエストライン'),
+  icon: text('icon'),
+  order: integer('order').notNull().default(1),
+  nodes: text('nodes', { mode: 'json' }).$type<Array<{ questId: string; x: number; y: number }>>().notNull().default([]),
+})
+
 export const quests = sqliteTable('quests', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  questlineId: text('questline_id').notNull().default('00000000'),
   title: text('title').notNull(),
   description: text('description'),
   icon: text('icon'),
@@ -21,6 +30,7 @@ export const quests = sqliteTable('quests', {
 export const playerProgress = sqliteTable('player_progress', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   playerUuid: text('player_uuid').notNull(),
+  questlineId: text('questline_id').notNull().default('00000000'),
   questId: integer('quest_id').notNull().references(() => quests.id),
   progress: text('progress', { mode: 'json' }).$type<object[]>().notNull().default([]),
   completed: integer('completed', { mode: 'boolean' }).notNull().default(false),
@@ -37,6 +47,7 @@ export const questCompletions = sqliteTable('quest_completions', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   playerUuid: text('player_uuid').notNull(),
   playerName: text('player_name').notNull(),
+  questlineId: text('questline_id').notNull().default('00000000'),
   // 本番 (DatabaseManager) と同様に FK 制約は張らない (クリアログは追記専用)
   questId: integer('quest_id').notNull(),
   completedAt: text('completed_at').notNull(),
@@ -47,6 +58,7 @@ export const rewardClaims = sqliteTable('reward_claims', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   playerUuid: text('player_uuid').notNull(),
   playerName: text('player_name').notNull(),
+  questlineId: text('questline_id').notNull().default('00000000'),
   questId: integer('quest_id').notNull(),
   questTitle: text('quest_title').notNull(),
   rewardType: text('reward_type').notNull(),
@@ -59,6 +71,7 @@ export const rewardClaims = sqliteTable('reward_claims', {
 
 export const questProposals = sqliteTable('quest_proposals', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  questlineId: text('questline_id').notNull().default('00000000'),
   questId: integer('quest_id').notNull().references(() => quests.id),
   proposerUuid: text('proposer_uuid').notNull(),
   proposerName: text('proposer_name').notNull(),

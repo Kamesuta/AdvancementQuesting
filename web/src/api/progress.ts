@@ -8,14 +8,15 @@ export const progressApi = {
   listByPlayer: (playerUuid: string) =>
     api.get<PlayerProgress[]>(`/players/${playerUuid}/progress`),
 
-  get: (questId: string) => api.get<PlayerProgress>(`/progress/${questId}`),
+  get: (questlineId: string, questId: string) =>
+    api.get<PlayerProgress>(`/progress/${questlineId}/${questId}`),
 
-  claim: (questId: string) =>
-    api.post<{ claimed: boolean; rewards: unknown[] }>(`/progress/${questId}/claim`),
+  claim: (questlineId: string, questId: string) =>
+    api.post<{ claimed: boolean; rewards: unknown[] }>(`/progress/${questlineId}/${questId}/claim`),
 
-  completeCondition: (questId: string, conditionId: string) =>
-    api.post<{ status: string }>(`/progress/${questId}/condition/${conditionId}/complete`),
+  completeCondition: (questlineId: string, questId: string, conditionId: string) =>
+    api.post<{ status: string }>(`/progress/${questlineId}/${questId}/condition/${conditionId}/complete`),
 
-  deliver: (questId: string) =>
-    api.post<{ delivered: Record<string, number>; failed: Record<string, number> }>(`/progress/${questId}/deliver`),
+  deliver: (questlineId: string, questId: string) =>
+    api.post<{ delivered: Record<string, number>; failed: Record<string, number> }>(`/progress/${questlineId}/${questId}/deliver`),
 }

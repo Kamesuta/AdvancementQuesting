@@ -53,9 +53,11 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
 router.post('/', requireAuth, async (req: AuthRequest, res) => {
   const body = req.body
   const now = new Date()
+  const questlineId = body.questlineId ?? '00000000'
 
   // クエストを proposed として作成 (id は AUTOINCREMENT)
   const questResult = await db.insert(quests).values({
+    questlineId,
     title: body.title ?? '新規提案クエスト',
     description: body.description ?? null,
     icon: body.icon ?? null,
@@ -72,6 +74,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
   }).returning()
 
   const proposal = {
+    questlineId,
     questId: questResult[0].id,
     proposerUuid: req.playerUuid!,
     proposerName: req.playerName!,

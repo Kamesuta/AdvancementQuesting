@@ -3,7 +3,8 @@ import type { QueryClient } from '@tanstack/react-query'
 
 /** SSE で受信したクエスト完了通知 (マップ演出のトリガー用) */
 export interface QuestCompleteNotice {
-  questId: number
+  questlineId: string
+  questId: string
   /** 同じクエストが連続達成されても再発火できるよう毎回ユニークな値を入れる */
   nonce: number
 }

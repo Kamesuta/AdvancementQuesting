@@ -43,6 +43,13 @@
       "when": 1781934930607,
       "tag": "0005_supreme_stellaris",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1782313200000,
+      "tag": "0006_questlines",
+      "breakpoints": true
     }
   ]
 }

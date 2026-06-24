@@ -2,7 +2,8 @@ export type RewardType = 'item' | 'experience' | 'point' | 'command'
 
 export interface RewardClaimItem {
   id: number
-  questId: number
+  questlineId: string
+  questId: string
   questTitle: string
   rewardType: RewardType
   rewardLabel: string | null

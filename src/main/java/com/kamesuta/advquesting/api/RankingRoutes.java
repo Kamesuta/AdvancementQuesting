@@ -14,7 +14,7 @@ import java.util.Map;
 /**
  * クエストのランキング API。
  *
- * GET /api/quests/{questId}/ranking?type=first|count&limit=&around=&full=
+ * GET /api/quests/{questlineId}/{questId}/ranking?type=first|count&limit=&around=&full=
  *   クリア順 (first) / クリア回数 (count) ランキングを返す。
  *   認証は任意 (未ログインでも閲覧可。ログイン時は me / around を埋める)。
  */
@@ -32,8 +32,9 @@ public class RankingRoutes {
     }
 
     public void register(Javalin app) {
-        app.get("/api/quests/{questId}/ranking", ctx -> {
-            int questId = parseId(ctx.pathParam("questId"));
+        app.get("/api/quests/{questlineId}/{questId}/ranking", ctx -> {
+            String questlineId = ctx.pathParam("questlineId");
+            String questId = ctx.pathParam("questId");
             String type = ctx.queryParam("type");
             if (type == null || !type.equals("count")) type = "first";
             boolean full = "true".equals(ctx.queryParam("full"));
@@ -44,8 +45,8 @@ public class RankingRoutes {
             String myUuid = resolveOptionalUuid(ctx.header("Authorization"));
 
             List<CompletionDao.RankRow> rows = "count".equals(type)
-                ? completionDao.countRanking(questId)
-                : completionDao.firstClearRanking(questId);
+                ? completionDao.countRanking(questlineId, questId)
+                : completionDao.firstClearRanking(questlineId, questId);
 
             // rank を連番付与 (同数同着は先着優先の単純連番)
             List<Map<String, Object>> all = new ArrayList<>(rows.size());
@@ -59,6 +60,7 @@ public class RankingRoutes {
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("type", type);
+            result.put("questlineId", questlineId);
             result.put("questId", questId);
             result.put("totalPlayers", all.size());
 
@@ -112,14 +114,6 @@ public class RankingRoutes {
             return s != null ? s.playerUuid() : null;
         } catch (SQLException e) {
             return null;
-        }
-    }
-
-    private static int parseId(String s) {
-        try {
-            return Integer.parseInt(s);
-        } catch (NumberFormatException e) {
-            throw new BadRequestResponse("Invalid id");
         }
     }
 

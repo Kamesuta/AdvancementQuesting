@@ -1,7 +1,8 @@
 export interface ActivityItem {
   /** quest_completions.id (次ページのカーソルに使う) */
   id: number
-  questId: number
+  questlineId: string
+  questId: string
   questTitle: string
   questIcon: string
   completedAt: string

@@ -1,7 +1,7 @@
 package com.kamesuta.advquesting.api;
 
 import com.kamesuta.advquesting.data.Quest;
-import com.kamesuta.advquesting.data.QuestManager;
+import com.kamesuta.advquesting.data.QuestlineManager;
 import com.kamesuta.advquesting.db.CompletionDao;
 import com.kamesuta.advquesting.db.RewardClaimDao;
 import io.javalin.Javalin;
@@ -27,12 +27,13 @@ public class PlayerProfileRoutes {
 
     private final CompletionDao completionDao;
     private final RewardClaimDao rewardClaimDao;
-    private final QuestManager questManager;
+    private final QuestlineManager questlineManager;
 
-    public PlayerProfileRoutes(CompletionDao completionDao, RewardClaimDao rewardClaimDao, QuestManager questManager) {
+    public PlayerProfileRoutes(CompletionDao completionDao, RewardClaimDao rewardClaimDao,
+                               QuestlineManager questlineManager) {
         this.completionDao = completionDao;
         this.rewardClaimDao = rewardClaimDao;
-        this.questManager = questManager;
+        this.questlineManager = questlineManager;
     }
 
     public void register(Javalin app) {
@@ -51,8 +52,9 @@ public class PlayerProfileRoutes {
             for (CompletionDao.ActivityRow r : page) {
                 Map<String, Object> m = new LinkedHashMap<>();
                 m.put("id", r.id());
+                m.put("questlineId", r.questlineId());
                 m.put("questId", r.questId());
-                Quest q = questManager.findById(r.questId());
+                Quest q = questlineManager.findById(r.questlineId(), r.questId());
                 m.put("questTitle", (q != null && q.title != null && !q.title.isEmpty()) ? q.title : "クエスト #" + r.questId());
                 m.put("questIcon", (q != null && q.icon != null && !q.icon.isEmpty()) ? q.icon : "stone");
                 m.put("completedAt", r.completedAt());
@@ -77,6 +79,7 @@ public class PlayerProfileRoutes {
             for (RewardClaimDao.ClaimRow r : claims) {
                 Map<String, Object> m = new LinkedHashMap<>();
                 m.put("id", r.id());
+                m.put("questlineId", r.questlineId());
                 m.put("questId", r.questId());
                 m.put("questTitle", r.questTitle());
                 m.put("rewardType", r.rewardType());

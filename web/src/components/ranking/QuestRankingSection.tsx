@@ -6,8 +6,8 @@ import { useViewAsContext } from '@/contexts/ViewAsContext.js'
 import { RankingPanel } from './RankingPanel.js'
 
 interface Props {
-  /** 数値クエストID (保存済みノードのみ)。 */
-  questId: number
+  questlineId: string
+  questId: string
   /** 繰り返しクエストなら種別セグメントを表示する。 */
   repeatable: boolean
   /** プレイヤー選択 (view-as) 時に呼ばれる。モーダルを閉じる等に使う。 */
@@ -18,14 +18,14 @@ interface Props {
  * クエストのランキングを取得して RankingPanel に流し込むコンテナ。
  * モーダル内の「ランキング」タブで使う。
  */
-export function QuestRankingSection({ questId, repeatable, onSelectPlayer }: Props) {
+export function QuestRankingSection({ questlineId, questId, repeatable, onSelectPlayer }: Props) {
   const [type, setType] = useState<RankingType>('first')
   const [full, setFull] = useState(false)
   const { setViewAs } = useViewAsContext()
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['ranking', questId, type, full],
-    queryFn: () => rankingApi.get(questId, { type, limit: full ? undefined : 5, full: full || undefined }),
+    queryKey: ['ranking', questlineId, questId, type, full],
+    queryFn: () => rankingApi.get(questlineId, questId, { type, limit: full ? undefined : 5, full: full || undefined }),
   })
 
   const handleShowAll = () => setFull(true)

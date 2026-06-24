@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { db } from '../db/client.js'
 import { quests } from '../db/schema.js'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { AuthRequest } from '../middleware/auth.js'
 import { requireAuth } from '../middleware/auth.js'
 
@@ -9,23 +9,24 @@ const router = Router()
 
 // GET /api/quests
 router.get('/', async (req, res) => {
-  const { status, category } = req.query as Record<string, string>
+  const { status, category, questlineId } = req.query as Record<string, string>
   const rows = await db.select().from(quests)
 
   const filtered = rows.filter((q) => {
     if (status && q.status !== status) return false
     if (category && q.category !== category) return false
+    if (questlineId && q.questlineId !== questlineId) return false
     return true
   })
 
   res.json(filtered)
 })
 
-// GET /api/quests/:id
-router.get('/:id', async (req, res) => {
-  const id = parseInt(String(req.params['id']), 10)
-  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return }
-  const quest = await db.select().from(quests).where(eq(quests.id, id)).get()
+// GET /api/quests/:questlineId/:questId
+router.get('/:questlineId/:questId', async (req, res) => {
+  const questId = parseInt(String(req.params['questId']), 10)
+  if (isNaN(questId)) { res.status(400).json({ error: 'Invalid questId' }); return }
+  const quest = await db.select().from(quests).where(eq(quests.id, questId)).get()
   if (!quest) {
     res.status(404).json({ error: 'Quest not found' })
     return
@@ -38,6 +39,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
   const body = req.body
   const now = new Date()
   const values = {
+    questlineId: body.questlineId ?? '00000000',
     title: body.title ?? 'New Quest',
     description: body.description ?? null,
     icon: body.icon ?? null,
@@ -58,11 +60,11 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
   res.status(201).json(result[0])
 })
 
-// PUT /api/quests/:id
-router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
-  const id = parseInt(String(req.params['id']), 10)
-  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return }
-  const existing = await db.select().from(quests).where(eq(quests.id, id)).get()
+// PUT /api/quests/:questlineId/:questId
+router.put('/:questlineId/:questId', requireAuth, async (req: AuthRequest, res) => {
+  const questId = parseInt(String(req.params['questId']), 10)
+  if (isNaN(questId)) { res.status(400).json({ error: 'Invalid questId' }); return }
+  const existing = await db.select().from(quests).where(eq(quests.id, questId)).get()
   if (!existing) {
     res.status(404).json({ error: 'Quest not found' })
     return
@@ -71,15 +73,15 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res) => {
   const body = req.body
   const updated = { ...body, updatedAt: new Date() }
 
-  await db.update(quests).set(updated).where(eq(quests.id, id))
+  await db.update(quests).set(updated).where(eq(quests.id, questId))
   res.json({ ...existing, ...updated })
 })
 
-// DELETE /api/quests/:id
-router.delete('/:id', requireAuth, async (req, res) => {
-  const id = parseInt(String(req.params['id']), 10)
-  if (isNaN(id)) { res.status(400).json({ error: 'Invalid id' }); return }
-  await db.delete(quests).where(eq(quests.id, id))
+// DELETE /api/quests/:questlineId/:questId
+router.delete('/:questlineId/:questId', requireAuth, async (req, res) => {
+  const questId = parseInt(String(req.params['questId']), 10)
+  if (isNaN(questId)) { res.status(400).json({ error: 'Invalid questId' }); return }
+  await db.delete(quests).where(and(eq(quests.id, questId)))
   res.status(204).send()
 })
 

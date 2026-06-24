@@ -2,7 +2,7 @@ package com.kamesuta.advquesting.command;
 
 import com.kamesuta.advquesting.data.ProgressManager;
 import com.kamesuta.advquesting.data.Quest;
-import com.kamesuta.advquesting.data.QuestManager;
+import com.kamesuta.advquesting.data.QuestlineManager;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -25,11 +25,11 @@ import java.util.List;
 public class QuestEditCommand implements CommandExecutor, TabCompleter {
 
     private final ProgressManager progressManager;
-    private final QuestManager questManager;
+    private final QuestlineManager questlineManager;
 
-    public QuestEditCommand(ProgressManager progressManager, QuestManager questManager) {
+    public QuestEditCommand(ProgressManager progressManager, QuestlineManager questlineManager) {
         this.progressManager = progressManager;
-        this.questManager = questManager;
+        this.questlineManager = questlineManager;
     }
 
     @Override
@@ -50,7 +50,7 @@ public class QuestEditCommand implements CommandExecutor, TabCompleter {
 
     private void sendUsage(CommandSender sender) {
         sender.sendMessage(Component.text(
-            "使い方: /quest_edit <complete|uncomplete> <プレイヤー|@a|@p|@s> <クエストID>",
+            "使い方: /quest_edit <complete|uncomplete> <プレイヤー|@a|@p|@s> <番号>",
             NamedTextColor.RED));
     }
 
@@ -60,17 +60,23 @@ public class QuestEditCommand implements CommandExecutor, TabCompleter {
             return;
         }
         String selector = args[1];
-        int questId;
+        int cmdNum;
         try {
-            questId = Integer.parseInt(args[2]);
+            cmdNum = Integer.parseInt(args[2]);
         } catch (NumberFormatException e) {
-            sender.sendMessage(Component.text("クエストIDは数字で指定してください。", NamedTextColor.RED));
+            sender.sendMessage(Component.text("番号は数字で指定してください。", NamedTextColor.RED));
             return;
         }
 
-        Quest quest = questManager.findById(questId);
+        QuestlineManager.QuestRef ref = questlineManager.resolveCommandNumber(cmdNum);
+        if (ref == null) {
+            sender.sendMessage(Component.text("クエストが見つかりません: #" + cmdNum, NamedTextColor.RED));
+            return;
+        }
+
+        Quest quest = questlineManager.findById(ref.questlineId(), ref.questId());
         if (quest == null) {
-            sender.sendMessage(Component.text("クエストが見つかりません: #" + questId, NamedTextColor.RED));
+            sender.sendMessage(Component.text("クエストが見つかりません: #" + cmdNum, NamedTextColor.RED));
             return;
         }
 
@@ -84,7 +90,8 @@ public class QuestEditCommand implements CommandExecutor, TabCompleter {
         int success = 0;
         for (Player target : targets) {
             try {
-                if (progressManager.setQuestCompleted(target.getUniqueId().toString(), questId, completed)) {
+                if (progressManager.setQuestCompleted(
+                        target.getUniqueId().toString(), ref.questlineId(), ref.questId(), completed)) {
                     success++;
                 }
             } catch (SQLException e) {
@@ -148,13 +155,17 @@ public class QuestEditCommand implements CommandExecutor, TabCompleter {
             return opts.stream().filter(s -> s.toLowerCase().startsWith(prefix)).toList();
         }
 
-        // <questId> 補完: 既存クエストのID一覧
+        // <番号> 補完: コマンド採番された番号一覧
         if (args.length == 3) {
             String prefix = args[2];
-            return questManager.loadAll().stream()
-                .map(q -> String.valueOf(q.id))
-                .filter(s -> s.startsWith(prefix))
-                .toList();
+            List<String> nums = new ArrayList<>();
+            try {
+                for (Quest q : questlineManager.loadAll()) {
+                    Integer n = questlineManager.getCommandNumber(q.questlineId, q.id);
+                    if (n != null) nums.add(String.valueOf(n));
+                }
+            } catch (Exception ignored) {}
+            return nums.stream().filter(s -> s.startsWith(prefix)).toList();
         }
         return List.of();
     }

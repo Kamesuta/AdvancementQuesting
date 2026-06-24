@@ -124,12 +124,13 @@ export interface CustomButton {
 }
 
 export interface Quest {
-  id: number
+  id: string
+  questlineId: string
   title: string
   description: string | null
   icon: string | null
   category: string | null
-  prerequisites: number[]
+  prerequisites: string[]
   conditions: Condition[]
   rewards: Reward[]
   mapPosition: MapPosition | null
@@ -143,7 +144,6 @@ export interface Quest {
 }
 
 export type QuestCreateInput = Omit<Quest, 'id' | 'createdAt' | 'updatedAt' | 'creatorUuid' | 'creatorName'> & {
-  prerequisites: number[]
   creatorUuid?: string | null
 }
 export type QuestUpdateInput = Partial<QuestCreateInput>

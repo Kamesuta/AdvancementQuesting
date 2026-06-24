@@ -7,7 +7,7 @@ import type { RewardType, RewardClaimItem } from '@/types/rewards.js'
 
 interface Props {
   playerUuid: string
-  onSelectQuest?: (questId: number) => void
+  onSelectQuest?: (questlineId: string, questId: string) => void
 }
 
 const TYPE_META: Record<RewardType, { icon: string; label: string; unit: string }> = {
@@ -58,7 +58,7 @@ function ScalarChip({
   type: RewardType
   total: number
   items: RewardClaimItem[]
-  onSelectQuest?: (questId: number) => void
+  onSelectQuest?: (questlineId: string, questId: string) => void
 }) {
   const meta = TYPE_META[type]
   const [pos, setPos] = useState<PopoverPos | null>(null)
@@ -98,7 +98,7 @@ function ScalarChip({
           {items.map((it) => (
             <button
               key={it.id}
-              onClick={() => { close(); onSelectQuest?.(it.questId) }}
+              onClick={() => { close(); onSelectQuest?.(it.questlineId, String(it.questId)) }}
               className="w-full flex items-center gap-2 px-2 py-1.5 text-left hover:bg-white/10 transition-colors"
             >
               <span className="flex-1 min-w-0 truncate text-xs text-gray-200">
@@ -121,7 +121,7 @@ function ItemGrid({
   items, onSelectQuest,
 }: {
   items: RewardClaimItem[]
-  onSelectQuest?: (questId: number) => void
+  onSelectQuest?: (questlineId: string, questId: string) => void
 }) {
   const [openState, setOpenState] = useState<{ key: string; pos: PopoverPos } | null>(null)
 
@@ -183,7 +183,7 @@ function ItemGrid({
           {openEntry.entries.map((it) => (
             <button
               key={it.id}
-              onClick={() => { setOpenState(null); onSelectQuest?.(it.questId) }}
+              onClick={() => { setOpenState(null); onSelectQuest?.(it.questlineId, String(it.questId)) }}
               className="w-full flex items-center gap-2 px-2 py-1.5 text-left hover:bg-white/10 transition-colors"
             >
               <span className="flex-1 min-w-0 truncate text-xs text-gray-300">{it.questTitle}</span>

@@ -8,7 +8,8 @@ export interface ConditionProgress {
 export interface PlayerProgress {
   id: number
   playerUuid: string
-  questId: number
+  questlineId: string
+  questId: string
   progress: ConditionProgress[]
   completed: boolean
   rewardClaimed: boolean

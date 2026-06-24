@@ -82,11 +82,10 @@ export function QuestEditorModal({
   const repeat = node.repeat
   const isRepeatQuest = repeat && repeat.type !== 'none'
 
-  // ランキング: 保存済み (数値ID) クエストのみ表示する。
-  // 新規作成中ノード (node-<timestamp> 等) は数値にならないので非表示。
-  const rankingQuestId = /^\d+$/.test(node.id) ? parseInt(node.id, 10) : null
-  const rankingSection = rankingQuestId != null
-    ? <QuestRankingSection questId={rankingQuestId} repeatable={!!isRepeatQuest} onSelectPlayer={close} />
+  // ランキング: 保存済み (questlineId が設定されている) クエストのみ表示する。
+  // 新規作成中ノードは questlineId が undefined なので非表示。
+  const rankingSection = node.questlineId
+    ? <QuestRankingSection questlineId={node.questlineId} questId={node.id} repeatable={!!isRepeatQuest} onSelectPlayer={close} />
     : null
   const repeatCountdown = (() => {
     if (!repeat || repeat.type === 'none' || repeat.type === 'unlimited') return null

@@ -195,7 +195,7 @@ function AppInner() {
   const handleQuestComplete = useCallback((event: QuestCompleteEvent) => {
     const nonce = Date.now()
     setQuestCompleteEvent({ ...event, nonce })
-    setLastQuestComplete({ questId: event.questId, nonce })
+    setLastQuestComplete({ questlineId: event.questlineId, questId: event.questId, nonce })
     // 進捗データを再取得してノードの達成済み表示を更新
     queryClient.invalidateQueries({ queryKey: ['progress'] })
     // ランキングも更新 (クリアログが増えたため)

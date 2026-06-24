@@ -43,14 +43,14 @@ router.get('/', requireAuth, async (req: AuthRequest, res) => {
     })
 
     const rewardClaimable = row.completed && !row.rewardClaimed
-    return { ...row, progress: enrichedProgress, rewardClaimable }
+    return { ...row, questlineId: row.questlineId, progress: enrichedProgress, rewardClaimable }
   })
 
   res.json(enriched)
 })
 
-// GET /api/progress/:questId
-router.get('/:questId', requireAuth, async (req: AuthRequest, res) => {
+// GET /api/progress/:questlineId/:questId
+router.get('/:questlineId/:questId', requireAuth, async (req: AuthRequest, res) => {
   const questId = parseInt(String(req.params['questId']), 10)
   if (isNaN(questId)) { res.status(400).json({ error: 'Invalid questId' }); return }
   const row = await db
@@ -72,8 +72,8 @@ router.get('/:questId', requireAuth, async (req: AuthRequest, res) => {
   res.json(row)
 })
 
-// POST /api/progress/:questId/condition/:conditionId/complete — チェックマーク条件を手動完了
-router.post('/:questId/condition/:conditionId/complete', requireAuth, async (req: AuthRequest, res) => {
+// POST /api/progress/:questlineId/:questId/condition/:conditionId/complete — チェックマーク条件を手動完了
+router.post('/:questlineId/:questId/condition/:conditionId/complete', requireAuth, async (req: AuthRequest, res) => {
   const questId = parseInt(String(req.params['questId']), 10)
   const conditionId = String(req.params['conditionId'])
   if (isNaN(questId)) { res.status(400).json({ error: 'Invalid questId' }); return }
@@ -106,9 +106,10 @@ router.post('/:questId/condition/:conditionId/complete', requireAuth, async (req
 
   // 全条件完了かチェック
   const allDone = conditions.every((c) => newProgress.some((p) => p['conditionId'] === c['id'] && p['completed'] === true))
+  const questlineId = String(req.params['questlineId'] ?? '00000000')
 
   await db.insert(playerProgress).values({
-    playerUuid: req.playerUuid!, questId, progress: newProgress, completed: allDone, rewardClaimed: false,
+    playerUuid: req.playerUuid!, questlineId, questId, progress: newProgress, completed: allDone, rewardClaimed: false,
   }).onConflictDoUpdate({
     target: [playerProgress.playerUuid, playerProgress.questId],
     set: { progress: newProgress, completed: allDone },
@@ -117,8 +118,8 @@ router.post('/:questId/condition/:conditionId/complete', requireAuth, async (req
   res.json({ status: 'completed' })
 })
 
-// POST /api/progress/:questId/deliver — 納品 (モック: 全納品タスクを完了にする)
-router.post('/:questId/deliver', requireAuth, async (req: AuthRequest, res) => {
+// POST /api/progress/:questlineId/:questId/deliver — 納品 (モック: 全納品タスクを完了にする)
+router.post('/:questlineId/:questId/deliver', requireAuth, async (req: AuthRequest, res) => {
   const questId = parseInt(String(req.params['questId']), 10)
   if (isNaN(questId)) { res.status(400).json({ error: 'Invalid questId' }); return }
 
@@ -145,9 +146,10 @@ router.post('/:questId/deliver', requireAuth, async (req: AuthRequest, res) => {
   }
 
   const allDone = conditions.every((c) => newProgress.some((p) => p['conditionId'] === c['id'] && p['completed'] === true))
+  const questlineId = String(req.params['questlineId'] ?? '00000000')
 
   await db.insert(playerProgress).values({
-    playerUuid: req.playerUuid!, questId, progress: newProgress, completed: allDone, rewardClaimed: false,
+    playerUuid: req.playerUuid!, questlineId, questId, progress: newProgress, completed: allDone, rewardClaimed: false,
   }).onConflictDoUpdate({
     target: [playerProgress.playerUuid, playerProgress.questId],
     set: { progress: newProgress, completed: allDone },
@@ -156,8 +158,8 @@ router.post('/:questId/deliver', requireAuth, async (req: AuthRequest, res) => {
   res.json({ delivered, failed: {} })
 })
 
-// POST /api/progress/:questId/claim — 報酬受け取り
-router.post('/:questId/claim', requireAuth, async (req: AuthRequest, res) => {
+// POST /api/progress/:questlineId/:questId/claim — 報酬受け取り
+router.post('/:questlineId/:questId/claim', requireAuth, async (req: AuthRequest, res) => {
   const questId = parseInt(String(req.params['questId']), 10)
   if (isNaN(questId)) { res.status(400).json({ error: 'Invalid questId' }); return }
   const progress = await db
@@ -199,8 +201,9 @@ router.post('/:questId/claim', requireAuth, async (req: AuthRequest, res) => {
   const session = await db.select().from(playerSessions)
     .where(eq(playerSessions.playerUuid, req.playerUuid!)).get()
   const playerName = session?.playerName ?? req.playerUuid!
+  const questlineId = String(req.params['questlineId'] ?? '00000000')
   await insertQuestRewards(
-    req.playerUuid!, playerName, questId, quest?.title ?? `クエスト #${questId}`,
+    req.playerUuid!, playerName, questlineId, questId, quest?.title ?? `クエスト #${questId}`,
     rewards, new Date().toISOString(), 'claim',
   )
 

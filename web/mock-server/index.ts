@@ -5,6 +5,7 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { db } from './db/client.js'
 
 import authRoutes from './routes/auth.js'
+import questlineRoutes from './routes/questlines.js'
 import questRoutes from './routes/quests.js'
 import rankingRoutes from './routes/ranking.js'
 import progressRoutes from './routes/progress.js'
@@ -33,6 +34,7 @@ app.use(cors({ origin: true, credentials: true }))
 app.use(express.json())
 
 app.use('/api/auth', authRoutes)
+app.use('/api/questlines', questlineRoutes)
 app.use('/api/quests', rankingRoutes)
 app.use('/api/quests', questRoutes)
 app.use('/api/progress', progressRoutes)
@@ -89,11 +91,11 @@ app.get('/api/notifications/stream', (req, res) => {
 
 // テスト用: 指定トークン(playerUuid)へ quest_complete イベントを送信
 app.post('/api/test/notify-quest-complete', express.json(), (req, res) => {
-  const { token, questId, questTitle, playerName } = req.body as {
-    token: string; questId: number; questTitle: string; playerName: string
+  const { token, questlineId, questId, questTitle, playerName } = req.body as {
+    token: string; questlineId?: string; questId: number; questTitle: string; playerName: string
   }
   const targets = sseClients.get(token) ?? []
-  const payload = JSON.stringify({ questId, questTitle, playerUuid: token, playerName })
+  const payload = JSON.stringify({ questlineId: questlineId ?? '00000000', questId, questTitle, playerUuid: token, playerName })
   for (const client of [...targets]) {
     client.write(`event: quest_complete\ndata: ${payload}\n\n`)
   }
@@ -102,11 +104,11 @@ app.post('/api/test/notify-quest-complete', express.json(), (req, res) => {
 
 // テスト用: 指定トークン(playerUuid)へ progress_update イベントを送信 (演出なし)
 app.post('/api/test/notify-progress-update', express.json(), (req, res) => {
-  const { token, questId, completed } = req.body as {
-    token: string; questId: number; completed: boolean
+  const { token, questlineId, questId, completed } = req.body as {
+    token: string; questlineId?: string; questId: number; completed: boolean
   }
   const targets = sseClients.get(token) ?? []
-  const payload = JSON.stringify({ questId, completed: !!completed, playerUuid: token })
+  const payload = JSON.stringify({ questlineId: questlineId ?? '00000000', questId, completed: !!completed, playerUuid: token })
   for (const client of [...targets]) {
     client.write(`event: progress_update\ndata: ${payload}\n\n`)
   }
@@ -149,12 +151,13 @@ app.post('/api/test/reset-proposals', async (_req, res) => {
 
 // テスト用: 指定プレイヤー・クエストの進捗を完了状態にする
 app.post('/api/test/set-progress', express.json(), async (req, res) => {
-  const { playerUuid, questId, completed, rewardClaimed, pendingRewards, completedCount } = req.body as {
-    playerUuid: string; questId: number; completed: boolean; rewardClaimed?: boolean
+  const { playerUuid, questlineId, questId, completed, rewardClaimed, pendingRewards, completedCount } = req.body as {
+    playerUuid: string; questlineId?: string; questId: number; completed: boolean; rewardClaimed?: boolean
     pendingRewards?: number; completedCount?: number
   }
+  const qlId = questlineId ?? '00000000'
   await db.insert(playerProgress).values({
-    playerUuid, questId, progress: [], completed: !!completed, rewardClaimed: !!rewardClaimed,
+    playerUuid, questlineId: qlId, questId, progress: [], completed: !!completed, rewardClaimed: !!rewardClaimed,
     pendingRewards: pendingRewards ?? 0, completedCount: completedCount ?? 0,
   }).onConflictDoUpdate({
     target: [playerProgress.playerUuid, playerProgress.questId],
@@ -168,15 +171,17 @@ app.post('/api/test/set-progress', express.json(), async (req, res) => {
 
 // テスト用: 指定プレイヤー・クエストの条件進捗を細かく設定する
 app.post('/api/test/set-condition-progress', express.json(), async (req, res) => {
-  const { playerUuid, questId, progress, completed, rewardClaimed } = req.body as {
+  const { playerUuid, questlineId, questId, progress, completed, rewardClaimed } = req.body as {
     playerUuid: string
+    questlineId?: string
     questId: number
     progress: object[]
     completed?: boolean
     rewardClaimed?: boolean
   }
+  const qlId = questlineId ?? '00000000'
   await db.insert(playerProgress).values({
-    playerUuid, questId, progress, completed: !!completed, rewardClaimed: !!rewardClaimed,
+    playerUuid, questlineId: qlId, questId, progress, completed: !!completed, rewardClaimed: !!rewardClaimed,
   }).onConflictDoUpdate({
     target: [playerProgress.playerUuid, playerProgress.questId],
     set: { progress, completed: !!completed, rewardClaimed: !!rewardClaimed },
@@ -191,17 +196,19 @@ app.post('/api/test/reset-progress', async (_req, res) => {
 })
 
 // テスト用: クリアログを投入する (ランキング検証用)
-// body: { questId, entries: [{ playerUuid, playerName, completedAt }] } または単体
+// body: { questlineId?, questId, entries: [{ playerUuid, playerName, completedAt }] } または単体
 app.post('/api/test/add-completion', async (req, res) => {
-  const { questId, entries, playerUuid, playerName, completedAt } = req.body as {
+  const { questlineId, questId, entries, playerUuid, playerName, completedAt } = req.body as {
+    questlineId?: string
     questId: number
     entries?: Array<{ playerUuid: string; playerName: string; completedAt: string }>
     playerUuid?: string; playerName?: string; completedAt?: string
   }
+  const qlId = questlineId ?? '00000000'
   const list = entries ?? [{ playerUuid: playerUuid!, playerName: playerName!, completedAt: completedAt! }]
   for (const e of list) {
     await db.insert(questCompletions).values({
-      questId, playerUuid: e.playerUuid, playerName: e.playerName, completedAt: e.completedAt,
+      questlineId: qlId, questId, playerUuid: e.playerUuid, playerName: e.playerName, completedAt: e.completedAt,
     })
   }
   res.json({ ok: true, inserted: list.length })
@@ -220,13 +227,13 @@ app.post('/api/test/migrate-completions', async (_req, res) => {
 })
 
 // テスト用: 報酬受取ログを投入する (トータル獲得報酬の検証用)
-// body: { questId, questTitle, playerUuid, playerName, rewards: [...], source? }
+// body: { questlineId?, questId, questTitle, playerUuid, playerName, rewards: [...], source? }
 app.post('/api/test/add-reward-claim', async (req, res) => {
-  const { questId, questTitle, playerUuid, playerName, rewards, source } = req.body as {
-    questId: number; questTitle: string; playerUuid: string; playerName: string
+  const { questlineId, questId, questTitle, playerUuid, playerName, rewards, source } = req.body as {
+    questlineId?: string; questId: number; questTitle: string; playerUuid: string; playerName: string
     rewards: Array<Record<string, unknown>>; source?: 'claim' | 'migrated'
   }
-  await insertQuestRewards(playerUuid, playerName, questId, questTitle, rewards,
+  await insertQuestRewards(playerUuid, playerName, questlineId ?? '00000000', questId, questTitle, rewards,
     new Date().toISOString(), source ?? 'claim')
   res.json({ ok: true })
 })
@@ -257,6 +264,7 @@ async function migrateCompletionsFromProgress() {
     if (seen.has(key)) continue
     seen.add(key)
     await db.insert(questCompletions).values({
+      questlineId: p.questlineId,
       questId: p.questId,
       playerUuid: p.playerUuid,
       playerName: nameByUuid.get(p.playerUuid) ?? p.playerUuid,
@@ -288,7 +296,7 @@ async function migrateRewardsFromProgress() {
     seen.add(key)
     await insertQuestRewards(
       p.playerUuid, nameByUuid.get(p.playerUuid) ?? p.playerUuid,
-      p.questId, quest.title, rewards,
+      p.questlineId, p.questId, quest.title, rewards,
       (p.completedAt ?? new Date()).toISOString(), 'migrated',
     )
     migrated++

@@ -2,7 +2,7 @@ package com.kamesuta.advquesting.command;
 
 import com.kamesuta.advquesting.data.ProgressManager;
 import com.kamesuta.advquesting.data.Quest;
-import com.kamesuta.advquesting.data.QuestManager;
+import com.kamesuta.advquesting.data.QuestlineManager;
 import com.kamesuta.advquesting.db.AuthCodeDao;
 import com.kamesuta.advquesting.db.ProgressDao;
 import net.kyori.adventure.text.Component;
@@ -26,16 +26,16 @@ public class QuestCommand implements CommandExecutor, TabCompleter {
     private final String webUrl;
     private final ProgressDao progressDao;
     private final ProgressManager progressManager;
-    private final QuestManager questManager;
+    private final QuestlineManager questlineManager;
 
     public QuestCommand(AuthCodeDao authCodeDao, String webUrl,
                         ProgressDao progressDao, ProgressManager progressManager,
-                        QuestManager questManager) {
+                        QuestlineManager questlineManager) {
         this.authCodeDao = authCodeDao;
         this.webUrl = webUrl;
         this.progressDao = progressDao;
         this.progressManager = progressManager;
-        this.questManager = questManager;
+        this.questlineManager = questlineManager;
     }
 
     @Override
@@ -72,7 +72,7 @@ public class QuestCommand implements CommandExecutor, TabCompleter {
             case "progress" -> handleProgress(sender);
             case "claim" -> handleClaim(sender, args);
             default -> sender.sendMessage(Component.text(
-                "使い方: /quest [code|progress|claim <id>]", NamedTextColor.RED));
+                "使い方: /quest [code|progress|claim <番号>]", NamedTextColor.RED));
         }
         return true;
     }
@@ -113,12 +113,16 @@ public class QuestCommand implements CommandExecutor, TabCompleter {
             }
             player.sendMessage(Component.text("=== クエスト進捗 ===", NamedTextColor.GOLD));
             for (ProgressDao.ProgressRecord r : records) {
-                Quest quest = questManager.findById(r.questId());
-                String title = quest != null ? quest.title : "Quest #" + r.questId();
+                Quest quest = questlineManager.findById(r.questlineId(), r.questId());
+                String title = quest != null ? quest.title : "Quest " + r.questId();
+                int cmdNum = quest != null
+                    ? questlineManager.getCommandNumber(quest.questlineId, quest.id)
+                    : 0;
+                String claimArg = cmdNum > 0 ? String.valueOf(cmdNum) : r.questId();
                 if (r.completed() && r.rewardClaimed()) {
                     player.sendMessage(Component.text("§7[受取済] " + title));
                 } else if (r.completed()) {
-                    player.sendMessage(Component.text("§a[完了] " + title + " §7(§e/quest claim " + r.questId() + "§7)"));
+                    player.sendMessage(Component.text("§a[完了] " + title + " §7(§e/quest claim " + claimArg + "§7)"));
                 } else {
                     player.sendMessage(Component.text("§e[進行中] " + title));
                 }
@@ -134,18 +138,24 @@ public class QuestCommand implements CommandExecutor, TabCompleter {
             return;
         }
         if (args.length < 2) {
-            player.sendMessage(Component.text("使い方: /quest claim <クエストID>", NamedTextColor.RED));
+            player.sendMessage(Component.text("使い方: /quest claim <番号>", NamedTextColor.RED));
             return;
         }
-        int questId;
+        int cmdNum;
         try {
-            questId = Integer.parseInt(args[1]);
+            cmdNum = Integer.parseInt(args[1]);
         } catch (NumberFormatException e) {
-            player.sendMessage(Component.text("クエストIDは数字で指定してください。", NamedTextColor.RED));
+            player.sendMessage(Component.text("番号は数字で指定してください。", NamedTextColor.RED));
+            return;
+        }
+        QuestlineManager.QuestRef ref = questlineManager.resolveCommandNumber(cmdNum);
+        if (ref == null) {
+            player.sendMessage(Component.text("クエストが見つかりません: #" + cmdNum, NamedTextColor.RED));
             return;
         }
         try {
-            int claimed = progressManager.claimReward(player.getUniqueId().toString(), questId);
+            int claimed = progressManager.claimReward(
+                player.getUniqueId().toString(), ref.questlineId(), ref.questId());
             if (claimed == 0) {
                 player.sendMessage(Component.text("クエストが未完了か、すでに報酬を受け取り済みです。", NamedTextColor.RED));
             }

@@ -48,6 +48,7 @@ router.get('/:uuid/activity', async (req, res) => {
     const q = questById.get(r.questId)
     return {
       id: r.id,
+      questlineId: r.questlineId,
       questId: r.questId,
       questTitle: q?.title ?? `クエスト #${r.questId}`,
       questIcon: q?.icon ?? 'stone',
@@ -78,6 +79,7 @@ router.get('/:uuid/rewards', async (req, res) => {
 
   const items = rows.map((r) => ({
     id: r.id,
+    questlineId: r.questlineId,
     questId: r.questId,
     questTitle: r.questTitle,
     rewardType: r.rewardType,

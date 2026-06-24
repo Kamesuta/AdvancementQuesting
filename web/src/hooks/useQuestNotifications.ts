@@ -1,20 +1,23 @@
 import { useEffect, useRef } from 'react'
 
 export interface QuestCompleteEvent {
-  questId: number
+  questlineId: string
+  questId: string
   questTitle: string
   playerUuid: string
   playerName: string
 }
 
 export interface ProgressUpdateEvent {
-  questId: number
+  questlineId: string
+  questId: string
   completed: boolean
   playerUuid: string
 }
 
 export interface RepeatResetEvent {
-  questId: number
+  questlineId: string
+  questId: string
   playerUuid: string
 }
 

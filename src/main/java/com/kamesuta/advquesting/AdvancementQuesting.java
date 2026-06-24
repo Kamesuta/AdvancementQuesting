@@ -8,11 +8,12 @@ import com.kamesuta.advquesting.api.PlayerProfileRoutes;
 import com.kamesuta.advquesting.api.ProposalRoutes;
 import com.kamesuta.advquesting.api.ProgressRoutes;
 import com.kamesuta.advquesting.api.QuestRoutes;
+import com.kamesuta.advquesting.api.QuestlineRoutes;
 import com.kamesuta.advquesting.api.RankingRoutes;
 import com.kamesuta.advquesting.command.QuestCommand;
 import com.kamesuta.advquesting.command.QuestEditCommand;
 import com.kamesuta.advquesting.data.ProgressManager;
-import com.kamesuta.advquesting.data.QuestManager;
+import com.kamesuta.advquesting.data.QuestlineManager;
 import com.kamesuta.advquesting.data.RepeatScheduler;
 import com.kamesuta.advquesting.db.AuthCodeDao;
 import com.kamesuta.advquesting.db.CompletionDao;
@@ -59,8 +60,13 @@ public final class AdvancementQuesting extends JavaPlugin {
         CompletionDao completionDao = new CompletionDao(db);
         RewardClaimDao rewardClaimDao = new RewardClaimDao(db);
         ProposalDao proposalDao = new ProposalDao(db);
-        QuestManager questManager = new QuestManager(getDataFolder());
-        ProgressManager progressManager = new ProgressManager(this, questManager, progressDao, completionDao, rewardClaimDao);
+
+        // クエストライン管理クラスの初期化 (旧フォーマットのマイグレーションを含む)
+        QuestlineManager questlineManager = new QuestlineManager(getDataFolder(), getLogger());
+        questlineManager.init();
+
+        ProgressManager progressManager = new ProgressManager(
+            this, questlineManager, progressDao, completionDao, rewardClaimDao);
 
         // 既存の完了済み進捗をクリアログへ初回移行する (冪等)。
         // 機能リリース前にクリア済みのプレイヤーをランキングに載せる。
@@ -80,8 +86,8 @@ public final class AdvancementQuesting extends JavaPlugin {
         // 既存の「クリア済み&受取済み」進捗を報酬受取ログへ初回移行する (冪等)。
         try {
             int migrated = rewardClaimDao.migrateFromProgress(
-                questId -> {
-                    var q = questManager.findById(questId);
+                (questlineId, questId) -> {
+                    var q = questlineManager.findById(questlineId, questId);
                     if (q == null) return null;
                     return new RewardClaimDao.QuestRewards(q.title, q.rewards);
                 },
@@ -117,11 +123,12 @@ public final class AdvancementQuesting extends JavaPlugin {
         progressManager.setNotificationRoutes(notificationRoutes);
         new AuthRoutes(sessionDao, authCodeDao).register(app);
         new ConfigRoutes(this).register(app);
-        new QuestRoutes(questManager, sessionDao).register(app);
+        new QuestlineRoutes(questlineManager, sessionDao).register(app);
+        new QuestRoutes(questlineManager, sessionDao).register(app);
         new ProgressRoutes(progressDao, progressManager, sessionDao).register(app);
         new RankingRoutes(completionDao, sessionDao).register(app);
-        new PlayerProfileRoutes(completionDao, rewardClaimDao, questManager).register(app);
-        new ProposalRoutes(proposalDao, questManager, sessionDao).register(app);
+        new PlayerProfileRoutes(completionDao, rewardClaimDao, questlineManager).register(app);
+        new ProposalRoutes(proposalDao, questlineManager, sessionDao).register(app);
         new PlayerRoutes(this, sessionDao).register(app);
         notificationRoutes.register(app);
 
@@ -146,15 +153,16 @@ public final class AdvancementQuesting extends JavaPlugin {
         scoreboardListener = new ScoreboardListener(progressManager);
         scoreboardListener.start(this);
 
-        repeatScheduler = new RepeatScheduler(this, questManager, progressDao, notificationRoutes);
+        repeatScheduler = new RepeatScheduler(this, questlineManager, progressDao, notificationRoutes);
         repeatScheduler.start();
 
         // コマンド登録
-        QuestCommand questCommand = new QuestCommand(authCodeDao, webUrl, progressDao, progressManager, questManager);
+        QuestCommand questCommand = new QuestCommand(
+            authCodeDao, webUrl, progressDao, progressManager, questlineManager);
         Objects.requireNonNull(getCommand("quest")).setExecutor(questCommand);
         Objects.requireNonNull(getCommand("quest")).setTabCompleter(questCommand);
 
-        QuestEditCommand questEditCommand = new QuestEditCommand(progressManager, questManager);
+        QuestEditCommand questEditCommand = new QuestEditCommand(progressManager, questlineManager);
         Objects.requireNonNull(getCommand("quest_edit")).setExecutor(questEditCommand);
         Objects.requireNonNull(getCommand("quest_edit")).setTabCompleter(questEditCommand);
     }

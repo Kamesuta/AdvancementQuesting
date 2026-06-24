@@ -9,7 +9,8 @@ public class ProposalDao {
 
     public record ProposalRecord(
         int id,
-        int questId,
+        String questlineId,
+        String questId,
         String proposerUuid,
         String proposerName,
         String status,
@@ -49,16 +50,18 @@ public class ProposalDao {
         }
     }
 
-    public ProposalRecord create(int questId, String proposerUuid, String proposerName) throws SQLException {
+    public ProposalRecord create(String questlineId, String questId,
+                                 String proposerUuid, String proposerName) throws SQLException {
         String sql = """
-            INSERT INTO quest_proposals (quest_id, proposer_uuid, proposer_name, created_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO quest_proposals (questline_id, quest_id, proposer_uuid, proposer_name, created_at)
+            VALUES (?, ?, ?, ?, ?)
             """;
         try (PreparedStatement ps = db.getConnection().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setInt(1, questId);
-            ps.setString(2, proposerUuid);
-            ps.setString(3, proposerName);
-            ps.setString(4, Instant.now().toString());
+            ps.setString(1, questlineId);
+            ps.setString(2, questId);
+            ps.setString(3, proposerUuid);
+            ps.setString(4, proposerName);
+            ps.setString(5, Instant.now().toString());
             ps.executeUpdate();
             ResultSet keys = ps.getGeneratedKeys();
             if (keys.next()) return findById(keys.getInt(1));
@@ -94,7 +97,6 @@ public class ProposalDao {
     /** 投票: 同方向なら取り消し、逆方向なら上書き。votes_up/down を同期更新する。 */
     public String vote(int proposalId, String playerUuid, String voteType) throws SQLException {
         Connection conn = db.getConnection();
-        // 既存投票を確認
         String existing = null;
         try (PreparedStatement ps = conn.prepareStatement(
                 "SELECT vote_type FROM proposal_votes WHERE proposal_id = ? AND player_uuid = ?")) {
@@ -105,7 +107,6 @@ public class ProposalDao {
         }
 
         if (voteType.equals(existing)) {
-            // 同方向 → 取り消し
             try (PreparedStatement ps = conn.prepareStatement(
                     "DELETE FROM proposal_votes WHERE proposal_id = ? AND player_uuid = ?")) {
                 ps.setInt(1, proposalId);
@@ -115,7 +116,6 @@ public class ProposalDao {
             syncVoteCounts(proposalId);
             return null;
         } else {
-            // 新規または上書き
             try (PreparedStatement ps = conn.prepareStatement("""
                     INSERT INTO proposal_votes (proposal_id, player_uuid, vote_type, voted_at)
                     VALUES (?, ?, ?, ?)
@@ -166,7 +166,8 @@ public class ProposalDao {
     private ProposalRecord fromRow(ResultSet rs) throws SQLException {
         return new ProposalRecord(
             rs.getInt("id"),
-            rs.getInt("quest_id"),
+            rs.getString("questline_id"),
+            rs.getString("quest_id"),
             rs.getString("proposer_uuid"),
             rs.getString("proposer_name"),
             rs.getString("status"),

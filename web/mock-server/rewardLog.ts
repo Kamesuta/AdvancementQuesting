@@ -5,6 +5,7 @@ import { rewardClaims } from './db/schema.js'
 export async function insertQuestRewards(
   playerUuid: string,
   playerName: string,
+  questlineId: string,
   questId: number,
   questTitle: string,
   rewards: Array<Record<string, unknown>>,
@@ -27,7 +28,7 @@ export async function insertQuestRewards(
       amount = 1
     }
     await db.insert(rewardClaims).values({
-      playerUuid, playerName, questId, questTitle,
+      playerUuid, playerName, questlineId, questId, questTitle,
       rewardType: type, rewardLabel: label, itemType, amount, claimedAt, source,
     })
   }

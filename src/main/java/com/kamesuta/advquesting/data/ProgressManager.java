@@ -39,17 +39,17 @@ public class ProgressManager {
     private static final TypeReference<List<Map<String, Object>>> LIST_MAP_TYPE = new TypeReference<>() {};
 
     private final JavaPlugin plugin;
-    private final QuestManager questManager;
+    private final QuestlineManager questlineManager;
     private final ProgressDao progressDao;
     private final CompletionDao completionDao;
     private final RewardClaimDao rewardClaimDao;
     private final Logger log;
     private NotificationRoutes notificationRoutes;
 
-    public ProgressManager(JavaPlugin plugin, QuestManager questManager, ProgressDao progressDao,
+    public ProgressManager(JavaPlugin plugin, QuestlineManager questlineManager, ProgressDao progressDao,
                            CompletionDao completionDao, RewardClaimDao rewardClaimDao) {
         this.plugin = plugin;
-        this.questManager = questManager;
+        this.questlineManager = questlineManager;
         this.progressDao = progressDao;
         this.completionDao = completionDao;
         this.rewardClaimDao = rewardClaimDao;
@@ -69,7 +69,7 @@ public class ProgressManager {
         // 名前空間なし版も用意して両方にマッチするようにする
         String advKeyNoNs = advancementKey.contains(":") ? advancementKey.substring(advancementKey.indexOf(':') + 1) : advancementKey;
         try {
-            for (Quest quest : questManager.loadAll()) {
+            for (Quest quest : questlineManager.loadAll()) {
                 if (!"public".equals(quest.status)) continue;
                 if (quest.conditions == null) continue;
                 boolean matched = quest.conditions.stream().anyMatch(c -> {
@@ -96,7 +96,7 @@ public class ProgressManager {
     public void onItemPickup(String playerUuid, String itemType, int inventoryCount) {
         String itemTypeNoNs = itemType.contains(":") ? itemType.substring(itemType.indexOf(':') + 1) : itemType;
         try {
-            for (Quest quest : questManager.loadAll()) {
+            for (Quest quest : questlineManager.loadAll()) {
                 if (!"public".equals(quest.status)) continue;
                 if (quest.conditions == null) continue;
                 boolean hasMatch = quest.conditions.stream().anyMatch(c -> {
@@ -124,7 +124,7 @@ public class ProgressManager {
      */
     public void onStat(String playerUuid, String statType, String statId, int currentValue) {
         try {
-            for (Quest quest : questManager.loadAll()) {
+            for (Quest quest : questlineManager.loadAll()) {
                 if (!"public".equals(quest.status)) continue;
                 if (quest.conditions == null) continue;
                 boolean hasMatch = quest.conditions.stream().anyMatch(c -> {
@@ -148,7 +148,7 @@ public class ProgressManager {
      */
     public void onScoreChange(String playerUuid, String objective, int score) {
         try {
-            for (Quest quest : questManager.loadAll()) {
+            for (Quest quest : questlineManager.loadAll()) {
                 if (!"public".equals(quest.status)) continue;
                 if (quest.conditions == null) continue;
                 boolean hasMatch = quest.conditions.stream().anyMatch(c ->
@@ -170,7 +170,7 @@ public class ProgressManager {
      */
     public void onPlayerMove(String playerUuid, int x, int y, int z, String dimension) {
         try {
-            for (Quest quest : questManager.loadAll()) {
+            for (Quest quest : questlineManager.loadAll()) {
                 if (!"public".equals(quest.status)) continue;
                 if (quest.conditions == null) continue;
                 boolean hasMatch = quest.conditions.stream().anyMatch(c ->
@@ -190,8 +190,9 @@ public class ProgressManager {
      * conditionId が checkmark 型の条件と一致する場合のみ処理する。
      * @return true: 完了に成功、false: 条件が存在しないか既に完了済み
      */
-    public boolean completeCheckmarkCondition(String playerUuid, int questId, String conditionId) throws SQLException {
-        Quest quest = questManager.findById(questId);
+    public boolean completeCheckmarkCondition(String playerUuid, String questlineId, String questId,
+                                              String conditionId) throws SQLException {
+        Quest quest = questlineManager.findById(questlineId, questId);
         if (quest == null || quest.conditions == null) return false;
 
         // checkmark 型かどうか確認
@@ -201,7 +202,7 @@ public class ProgressManager {
         if (!isCheckmark) return false;
 
         try {
-            ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, questId);
+            ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.questlineId, quest.id);
             List<Map<String, Object>> progress = record == null
                 ? new ArrayList<>()
                 : MAPPER.readValue(record.progress(), LIST_MAP_TYPE);
@@ -220,12 +221,13 @@ public class ProgressManager {
                 allDone = isAllConditionsMetIncludingCheckmarks(quest, progress);
             }
             String completedAt = allDone ? java.time.Instant.now().toString() : null;
-            progressDao.upsertProgress(playerUuid, questId, MAPPER.writeValueAsString(progress), allDone, completedAt);
+            progressDao.upsertProgress(playerUuid, quest.questlineId, quest.id,
+                MAPPER.writeValueAsString(progress), allDone, completedAt);
 
             if (allDone) {
                 notifyQuestComplete(playerUuid, quest);
             } else if (notificationRoutes != null) {
-                notificationRoutes.sendProgressUpdate(playerUuid, questId, false);
+                notificationRoutes.sendProgressUpdate(playerUuid, quest.questlineId, quest.id, false);
             }
             return true;
         } catch (Exception e) {
@@ -238,23 +240,23 @@ public class ProgressManager {
      * 報酬を受け取る（まとめて全 pending_rewards 分）。
      * @return 受け取った回数 (0 = 未完了または受取済み)
      */
-    public int claimReward(String playerUuid, int questId) throws SQLException {
-        Quest quest = questManager.findById(questId);
+    public int claimReward(String playerUuid, String questlineId, String questId) throws SQLException {
+        Quest quest = questlineManager.findById(questlineId, questId);
         if (quest == null) return 0;
         // claimReward は完了済みの報酬受取なので prerequisite チェック不要
 
-        ProgressDao.ProgressRecord rec = progressDao.findByPlayerAndQuest(playerUuid, questId);
+        ProgressDao.ProgressRecord rec = progressDao.findByPlayerAndQuest(playerUuid, quest.questlineId, quest.id);
         if (rec == null) return 0;
 
         // 繰り返しクエストは pending_rewards を全部消費、非繰り返しは従来の markRewardClaimed
         boolean isRepeat = quest.repeat != null && !"none".equals(quest.repeat.type);
         int claimed = 0;
         if (isRepeat) {
-            while (progressDao.claimOnePendingReward(playerUuid, questId)) {
+            while (progressDao.claimOnePendingReward(playerUuid, quest.questlineId, quest.id)) {
                 claimed++;
             }
         } else {
-            boolean ok = progressDao.markRewardClaimed(playerUuid, questId);
+            boolean ok = progressDao.markRewardClaimed(playerUuid, quest.questlineId, quest.id);
             claimed = ok ? 1 : 0;
         }
         if (claimed == 0) return 0;
@@ -263,7 +265,7 @@ public class ProgressManager {
         try {
             for (int i = 0; i < claimed; i++) {
                 rewardClaimDao.insertQuestRewards(playerUuid, playerUuidToName(playerUuid),
-                    quest.id, quest.title, quest.rewards, Instant.now().toString(), "claim");
+                    quest.questlineId, quest.id, quest.title, quest.rewards, Instant.now().toString(), "claim");
             }
         } catch (Exception e) {
             log.warning("reward claim log insert error: " + e.getMessage());
@@ -288,8 +290,8 @@ public class ProgressManager {
      * delivery 条件ごとにプレイヤーのインベントリからアイテムを消費し、進捗を更新する。
      * Javalin スレッドから呼ばれるため、Bukkit API は CompletableFuture でメインスレッドに委譲する。
      */
-    public DeliveryResult deliverItems(String playerUuid, int questId) throws Exception {
-        Quest quest = questManager.findById(questId);
+    public DeliveryResult deliverItems(String playerUuid, String questlineId, String questId) throws Exception {
+        Quest quest = questlineManager.findById(questlineId, questId);
         if (quest == null || quest.conditions == null) return new DeliveryResult(Map.of(), Map.of());
         if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return new DeliveryResult(Map.of(), Map.of());
 
@@ -303,7 +305,7 @@ public class ProgressManager {
         if (player == null) return new DeliveryResult(Map.of(), Map.of());
 
         // 既存進捗を読む
-        ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, questId);
+        ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.questlineId, quest.id);
         List<Map<String, Object>> progress = record == null
             ? new ArrayList<>()
             : MAPPER.readValue(record.progress(), LIST_MAP_TYPE);
@@ -380,7 +382,8 @@ public class ProgressManager {
         boolean allDone = isAllConditionsMetIncludingCheckmarks(quest, progress);
         String completedAt = allDone ? Instant.now().toString() : null;
         try {
-            progressDao.upsertProgress(playerUuid, questId, MAPPER.writeValueAsString(progress), allDone, completedAt);
+            progressDao.upsertProgress(playerUuid, quest.questlineId, quest.id,
+                MAPPER.writeValueAsString(progress), allDone, completedAt);
         } catch (Exception e) {
             log.warning("deliverItems upsert error: " + e.getMessage());
         }
@@ -388,7 +391,7 @@ public class ProgressManager {
         if (allDone) {
             notifyQuestComplete(playerUuid, quest);
         } else if (notificationRoutes != null) {
-            notificationRoutes.sendProgressUpdate(playerUuid, questId, false);
+            notificationRoutes.sendProgressUpdate(playerUuid, quest.questlineId, quest.id, false);
         }
 
         return new DeliveryResult(delivered, failed);
@@ -399,8 +402,9 @@ public class ProgressManager {
      * 完了にした場合は達成演出付きで通知、未完了に戻した場合は進捗の再取得のみ通知する。
      * @return クエストが存在すれば true、存在しなければ false
      */
-    public boolean setQuestCompleted(String playerUuid, int questId, boolean completed) throws SQLException {
-        Quest quest = questManager.findById(questId);
+    public boolean setQuestCompleted(String playerUuid, String questlineId, String questId,
+                                     boolean completed) throws SQLException {
+        Quest quest = questlineManager.findById(questlineId, questId);
         if (quest == null) return false;
 
         String progressJson;
@@ -421,14 +425,14 @@ public class ProgressManager {
             progressJson = "[]";
         }
 
-        progressDao.setCompleted(playerUuid, questId, completed, progressJson);
+        progressDao.setCompleted(playerUuid, quest.questlineId, quest.id, completed, progressJson);
 
         if (completed) {
             // 達成演出付きで通知（チャット・サウンド・パーティクル・SSE）
             notifyQuestComplete(playerUuid, quest);
         } else if (notificationRoutes != null) {
             // 未完了に戻した: ブラウザに進捗再取得を促す（演出なし）
-            notificationRoutes.sendProgressUpdate(playerUuid, questId, false);
+            notificationRoutes.sendProgressUpdate(playerUuid, quest.questlineId, quest.id, false);
         }
         return true;
     }
@@ -438,12 +442,14 @@ public class ProgressManager {
     /**
      * 前提クエストが全て完了しているか確認する。
      * prerequisites リストが空または null の場合は true を返す。
+     * 前提クエストは同一クエストライン内のクエストIDを参照する。
      */
     private boolean arePrerequisitesMet(UUID playerUuid, Quest quest) {
         if (quest.prerequisites == null || quest.prerequisites.isEmpty()) return true;
-        for (int prereqId : quest.prerequisites) {
+        for (String prereqId : quest.prerequisites) {
             try {
-                ProgressDao.ProgressRecord rec = progressDao.findByPlayerAndQuest(playerUuid.toString(), prereqId);
+                ProgressDao.ProgressRecord rec = progressDao.findByPlayerAndQuest(
+                    playerUuid.toString(), quest.questlineId, prereqId);
                 if (rec == null || !rec.completed()) return false;
             } catch (SQLException e) {
                 log.warning("arePrerequisitesMet error: " + e.getMessage());
@@ -456,7 +462,7 @@ public class ProgressManager {
     private void markConditionComplete(String playerUuid, Quest quest, String condType, String condValue)
             throws Exception {
         if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return;
-        ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.id);
+        ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.questlineId, quest.id);
         List<Map<String, Object>> progress = record == null
             ? new ArrayList<>()
             : MAPPER.readValue(record.progress(), LIST_MAP_TYPE);
@@ -487,19 +493,20 @@ public class ProgressManager {
 
         boolean allDone = isAllConditionsMet(quest, progress);
         String completedAt = allDone ? Instant.now().toString() : null;
-        progressDao.upsertProgress(playerUuid, quest.id, MAPPER.writeValueAsString(progress), allDone, completedAt);
+        progressDao.upsertProgress(playerUuid, quest.questlineId, quest.id,
+            MAPPER.writeValueAsString(progress), allDone, completedAt);
 
         if (allDone) {
             notifyQuestComplete(playerUuid, quest);
         } else if (notificationRoutes != null) {
-            notificationRoutes.sendProgressUpdate(playerUuid, quest.id, false);
+            notificationRoutes.sendProgressUpdate(playerUuid, quest.questlineId, quest.id, false);
         }
     }
 
     private void updateItemProgress(String playerUuid, Quest quest, String itemType, int inventoryCount)
             throws Exception {
         if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return;
-        ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.id);
+        ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.questlineId, quest.id);
         List<Map<String, Object>> progress = record == null
             ? new ArrayList<>()
             : MAPPER.readValue(record.progress(), LIST_MAP_TYPE);
@@ -530,12 +537,13 @@ public class ProgressManager {
 
         boolean allDone = isAllConditionsMet(quest, progress);
         String completedAt = allDone ? Instant.now().toString() : null;
-        progressDao.upsertProgress(playerUuid, quest.id, MAPPER.writeValueAsString(progress), allDone, completedAt);
+        progressDao.upsertProgress(playerUuid, quest.questlineId, quest.id,
+            MAPPER.writeValueAsString(progress), allDone, completedAt);
 
         if (allDone) {
             notifyQuestComplete(playerUuid, quest);
         } else if (notificationRoutes != null) {
-            notificationRoutes.sendProgressUpdate(playerUuid, quest.id, false);
+            notificationRoutes.sendProgressUpdate(playerUuid, quest.questlineId, quest.id, false);
         }
     }
 
@@ -543,7 +551,7 @@ public class ProgressManager {
     private void updateStatProgress(String playerUuid, Quest quest, String statType, String statId, int currentValue)
             throws Exception {
         if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return;
-        ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.id);
+        ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.questlineId, quest.id);
         List<Map<String, Object>> progress = record == null
             ? new ArrayList<>()
             : MAPPER.readValue(record.progress(), LIST_MAP_TYPE);
@@ -586,12 +594,13 @@ public class ProgressManager {
 
         boolean allDone = isAllConditionsMet(quest, progress);
         String completedAt = allDone ? Instant.now().toString() : null;
-        progressDao.upsertProgress(playerUuid, quest.id, MAPPER.writeValueAsString(progress), allDone, completedAt);
+        progressDao.upsertProgress(playerUuid, quest.questlineId, quest.id,
+            MAPPER.writeValueAsString(progress), allDone, completedAt);
 
         if (allDone) {
             notifyQuestComplete(playerUuid, quest);
         } else if (notificationRoutes != null) {
-            notificationRoutes.sendProgressUpdate(playerUuid, quest.id, false);
+            notificationRoutes.sendProgressUpdate(playerUuid, quest.questlineId, quest.id, false);
         }
     }
 
@@ -613,7 +622,7 @@ public class ProgressManager {
     private void updateScoreboardProgress(String playerUuid, Quest quest, String objective, int score)
             throws Exception {
         if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return;
-        ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.id);
+        ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.questlineId, quest.id);
         List<Map<String, Object>> progress = record == null
             ? new ArrayList<>()
             : MAPPER.readValue(record.progress(), LIST_MAP_TYPE);
@@ -655,12 +664,13 @@ public class ProgressManager {
 
         boolean allDone = isAllConditionsMet(quest, progress);
         String completedAt = allDone ? java.time.Instant.now().toString() : null;
-        progressDao.upsertProgress(playerUuid, quest.id, MAPPER.writeValueAsString(progress), allDone, completedAt);
+        progressDao.upsertProgress(playerUuid, quest.questlineId, quest.id,
+            MAPPER.writeValueAsString(progress), allDone, completedAt);
 
         if (allDone) {
             notifyQuestComplete(playerUuid, quest);
         } else if (notificationRoutes != null) {
-            notificationRoutes.sendProgressUpdate(playerUuid, quest.id, false);
+            notificationRoutes.sendProgressUpdate(playerUuid, quest.questlineId, quest.id, false);
         }
     }
 
@@ -668,7 +678,7 @@ public class ProgressManager {
     private void updateLocationProgress(String playerUuid, Quest quest, int px, int py, int pz, String dimension)
             throws Exception {
         if (!arePrerequisitesMet(UUID.fromString(playerUuid), quest)) return;
-        ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.id);
+        ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(playerUuid, quest.questlineId, quest.id);
         List<Map<String, Object>> progress = record == null
             ? new ArrayList<>()
             : MAPPER.readValue(record.progress(), LIST_MAP_TYPE);
@@ -700,12 +710,13 @@ public class ProgressManager {
         boolean allDone = isAllConditionsMet(quest, progress);
         if (!allDone) allDone = isAllConditionsMetIncludingCheckmarks(quest, progress);
         String completedAt = allDone ? java.time.Instant.now().toString() : null;
-        progressDao.upsertProgress(playerUuid, quest.id, MAPPER.writeValueAsString(progress), allDone, completedAt);
+        progressDao.upsertProgress(playerUuid, quest.questlineId, quest.id,
+            MAPPER.writeValueAsString(progress), allDone, completedAt);
 
         if (allDone) {
             notifyQuestComplete(playerUuid, quest);
         } else if (notificationRoutes != null) {
-            notificationRoutes.sendProgressUpdate(playerUuid, quest.id, false);
+            notificationRoutes.sendProgressUpdate(playerUuid, quest.questlineId, quest.id, false);
         }
     }
 
@@ -761,22 +772,23 @@ public class ProgressManager {
     private void notifyQuestComplete(String playerUuid, Quest quest) {
         // pending_rewards をインクリメント
         try {
-            progressDao.incrementCompletedCount(playerUuid, quest.id);
+            progressDao.incrementCompletedCount(playerUuid, quest.questlineId, quest.id);
         } catch (Exception e) {
             log.warning("incrementCompletedCount error: " + e.getMessage());
         }
 
         // クリアログを追記 (ランキングの真実のソース。繰り返しは完了のたびに積まれる)
         try {
-            completionDao.insert(playerUuid, playerUuidToName(playerUuid), quest.id, Instant.now().toString());
+            completionDao.insert(playerUuid, playerUuidToName(playerUuid),
+                quest.questlineId, quest.id, Instant.now().toString());
         } catch (Exception e) {
             log.warning("completion log insert error: " + e.getMessage());
         }
 
         // SSE でブラウザに通知 (Javalin スレッドから呼べる)
         if (notificationRoutes != null) {
-            notificationRoutes.sendQuestComplete(playerUuid, quest.id, quest.title,
-                playerUuidToName(playerUuid));
+            notificationRoutes.sendQuestComplete(playerUuid, quest.questlineId, quest.id,
+                quest.title, playerUuidToName(playerUuid));
         }
 
         // 繰り返しタイプ処理
@@ -785,12 +797,13 @@ public class ProgressManager {
             if ("unlimited".equals(repeat.type)) {
                 // stat/scoreboard 条件の rawValue を baseValue として引き継いでリセット
                 try {
-                    ProgressDao.ProgressRecord rec = progressDao.findByPlayerAndQuest(playerUuid, quest.id);
+                    ProgressDao.ProgressRecord rec = progressDao.findByPlayerAndQuest(
+                        playerUuid, quest.questlineId, quest.id);
                     List<Map<String, Object>> completedProgress = rec != null
                         ? MAPPER.readValue(rec.progress(), LIST_MAP_TYPE)
                         : new ArrayList<>();
                     String newProgressJson = buildResetProgressJson(quest, completedProgress);
-                    progressDao.resetForRepeatWithProgress(playerUuid, quest.id, newProgressJson);
+                    progressDao.resetForRepeatWithProgress(playerUuid, quest.questlineId, quest.id, newProgressJson);
                 } catch (Exception e) {
                     log.warning("resetForRepeat (unlimited) error: " + e.getMessage());
                 }
@@ -833,12 +846,14 @@ public class ProgressManager {
             }
 
             // 本人向けクエスト完了メッセージ (claimコマンド付き)
+            int cmdNum = questlineManager.getCommandNumber(quest.questlineId, quest.id);
+            String claimArg = cmdNum > 0 ? String.valueOf(cmdNum) : quest.id;
             Component claimMsg = Component.text("✨ クエスト完了: ", NamedTextColor.GOLD)
                 .append(Component.text(quest.title, NamedTextColor.WHITE, TextDecoration.BOLD))
                 .append(Component.newline())
                 .append(Component.text("報酬を受け取るには ", NamedTextColor.GRAY))
-                .append(Component.text("/quest claim " + quest.id, NamedTextColor.GREEN)
-                    .clickEvent(ClickEvent.runCommand("/quest claim " + quest.id))
+                .append(Component.text("/quest claim " + claimArg, NamedTextColor.GREEN)
+                    .clickEvent(ClickEvent.runCommand("/quest claim " + claimArg))
                     .hoverEvent(HoverEvent.showText(hoverContent)))
                 .append(Component.text(" を実行", NamedTextColor.GRAY));
             player.sendMessage(claimMsg);

@@ -7,7 +7,7 @@ import type { ActivityItem } from '@/types/activity.js'
 interface Props {
   playerUuid: string
   /** アクティビティ行クリック (クエストモーダルを開く等) */
-  onSelectQuest?: (questId: number) => void
+  onSelectQuest?: (questlineId: string, questId: string) => void
 }
 
 function formatRelative(iso: string): string {
@@ -69,7 +69,7 @@ export function RecentActivityPanel({ playerUuid, onSelectQuest }: Props) {
       {items.map((it) => (
         <button
           key={it.id}
-          onClick={() => onSelectQuest?.(it.questId)}
+          onClick={() => onSelectQuest?.(it.questlineId, String(it.questId))}
           className="flex items-center gap-2 px-2 py-1.5 rounded-sm bg-black/20 border border-transparent hover:bg-white/10 hover:border-gray-500 text-left transition-colors"
         >
           <ItemIcon type={it.questIcon} size={20} />

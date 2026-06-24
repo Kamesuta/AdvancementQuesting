@@ -1,7 +1,7 @@
 package com.kamesuta.advquesting.api;
 
 import com.kamesuta.advquesting.data.Quest;
-import com.kamesuta.advquesting.data.QuestManager;
+import com.kamesuta.advquesting.data.QuestlineManager;
 import com.kamesuta.advquesting.db.ProposalDao;
 import com.kamesuta.advquesting.db.SessionDao;
 import io.javalin.Javalin;
@@ -19,12 +19,12 @@ import java.util.Map;
 public class ProposalRoutes {
 
     private final ProposalDao proposalDao;
-    private final QuestManager questManager;
+    private final QuestlineManager questlineManager;
     private final SessionDao sessionDao;
 
-    public ProposalRoutes(ProposalDao proposalDao, QuestManager questManager, SessionDao sessionDao) {
+    public ProposalRoutes(ProposalDao proposalDao, QuestlineManager questlineManager, SessionDao sessionDao) {
         this.proposalDao = proposalDao;
-        this.questManager = questManager;
+        this.questlineManager = questlineManager;
         this.sessionDao = sessionDao;
     }
 
@@ -37,10 +37,11 @@ public class ProposalRoutes {
                 List<ProposalDao.ProposalRecord> proposals = proposalDao.findAll();
                 List<Map<String, Object>> result = new ArrayList<>();
                 for (ProposalDao.ProposalRecord p : proposals) {
-                    Quest quest = questManager.findById(p.questId());
+                    Quest quest = questlineManager.findById(p.questlineId(), p.questId());
                     String myVote = proposalDao.getMyVote(p.id(), session.playerUuid());
                     Map<String, Object> map = new HashMap<>();
                     map.put("id", p.id());
+                    map.put("questlineId", p.questlineId());
                     map.put("questId", p.questId());
                     map.put("proposerUuid", p.proposerUuid());
                     map.put("proposerName", p.proposerName());
@@ -71,18 +72,27 @@ public class ProposalRoutes {
         });
 
         // POST /api/proposals — 提案投稿 (全ロール)
+        // Body: quest fields + questlineId (必須)
         app.post("/api/proposals", ctx -> {
             SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
             try {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> rawBody = ctx.bodyAsClass(Map.class);
+                String questlineId = rawBody.get("questlineId") instanceof String s ? s : null;
+                if (questlineId == null) throw new BadRequestResponse("questlineId is required");
+                double x = rawBody.get("mapX") instanceof Number n ? n.doubleValue() : 0.0;
+                double y = rawBody.get("mapY") instanceof Number n ? n.doubleValue() : 0.0;
+
                 Quest body = ctx.bodyAsClass(Quest.class);
                 body.status = "proposed";
                 body.creatorUuid = session.playerUuid();
-                Quest created = questManager.create(body);
+                Quest created = questlineManager.create(body, questlineId, x, y);
                 ProposalDao.ProposalRecord proposal = proposalDao.create(
-                    created.id, session.playerUuid(), session.playerName()
+                    created.questlineId, created.id, session.playerUuid(), session.playerName()
                 );
                 Map<String, Object> resp = new HashMap<>();
                 resp.put("id", proposal.id());
+                resp.put("questlineId", proposal.questlineId());
                 resp.put("questId", created.id);
                 resp.put("proposerUuid", proposal.proposerUuid());
                 resp.put("proposerName", proposal.proposerName());
@@ -119,12 +129,12 @@ public class ProposalRoutes {
                 }
                 proposalDao.delete(id);
                 // 関連クエスト (proposed状態) も削除
-                Quest quest = questManager.findById(proposal.questId());
+                Quest quest = questlineManager.findById(proposal.questlineId(), proposal.questId());
                 if (quest != null && "proposed".equals(quest.status)) {
-                    questManager.delete(proposal.questId());
+                    questlineManager.delete(proposal.questlineId(), proposal.questId());
                 }
                 ctx.status(204);
-            } catch (SQLException e) {
+            } catch (IOException | SQLException e) {
                 throw new RuntimeException(e);
             }
         });
@@ -159,7 +169,7 @@ public class ProposalRoutes {
                 Quest patch = new Quest();
                 patch.status = "public";
                 patch.creatorName = proposal.proposerName();
-                questManager.update(proposal.questId(), patch);
+                questlineManager.update(proposal.questlineId(), proposal.questId(), patch);
                 ctx.json(Map.of("status", "approved"));
             } catch (IOException | SQLException e) {
                 throw new RuntimeException(e);
@@ -182,7 +192,7 @@ public class ProposalRoutes {
                 // クエストを hidden に変更
                 Quest patch = new Quest();
                 patch.status = "hidden";
-                questManager.update(proposal.questId(), patch);
+                questlineManager.update(proposal.questlineId(), proposal.questId(), patch);
                 ctx.json(Map.of("status", "rejected"));
             } catch (IOException | SQLException e) {
                 throw new RuntimeException(e);

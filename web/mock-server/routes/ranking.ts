@@ -16,10 +16,11 @@ interface AggRow {
   lastAt: string
 }
 
-// GET /api/quests/:questId/ranking?type=first|count&limit=&around=&full=
-router.get('/:questId/ranking', async (req, res) => {
+// GET /api/quests/:questlineId/:questId/ranking?type=first|count&limit=&around=&full=
+router.get('/:questlineId/:questId/ranking', async (req, res) => {
   const questId = parseInt(String(req.params['questId']), 10)
   if (isNaN(questId)) { res.status(400).json({ error: 'Invalid questId' }); return }
+  const questlineId = String(req.params['questlineId'])
 
   const type = req.query['type'] === 'count' ? 'count' : 'first'
   const full = req.query['full'] === 'true'
@@ -67,7 +68,7 @@ router.get('/:questId/ranking', async (req, res) => {
     }
   })
 
-  const result: Record<string, unknown> = { type, questId, totalPlayers: all.length }
+  const result: Record<string, unknown> = { type, questlineId, questId, totalPlayers: all.length }
 
   if (full) {
     result['top'] = all

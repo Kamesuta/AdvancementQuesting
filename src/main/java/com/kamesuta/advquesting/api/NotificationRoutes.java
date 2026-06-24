@@ -73,9 +73,10 @@ public class NotificationRoutes {
     }
 
     /** playerUuid 宛に quest_complete イベントを送信する（達成演出あり） */
-    public void sendQuestComplete(String playerUuid, int questId, String questTitle,
-                                  String playerName) {
+    public void sendQuestComplete(String playerUuid, String questlineId, String questId,
+                                  String questTitle, String playerName) {
         send(playerUuid, "quest_complete", Map.of(
+            "questlineId", questlineId,
             "questId", questId,
             "questTitle", questTitle,
             "playerUuid", playerUuid,
@@ -86,8 +87,9 @@ public class NotificationRoutes {
     /**
      * playerUuid 宛に progress_update イベントを送信する（演出なし・進捗の再取得のみ）。
      */
-    public void sendProgressUpdate(String playerUuid, int questId, boolean completed) {
+    public void sendProgressUpdate(String playerUuid, String questlineId, String questId, boolean completed) {
         send(playerUuid, "progress_update", Map.of(
+            "questlineId", questlineId,
             "questId", questId,
             "completed", completed,
             "playerUuid", playerUuid
@@ -98,8 +100,9 @@ public class NotificationRoutes {
      * 繰り返しクエストが復活したときに送信する。
      * クライアントは progress を再取得して残り時間表示を更新する。
      */
-    public void sendRepeatReset(String playerUuid, int questId) {
+    public void sendRepeatReset(String playerUuid, String questlineId, String questId) {
         send(playerUuid, "repeat_reset", Map.of(
+            "questlineId", questlineId,
             "questId", questId,
             "playerUuid", playerUuid
         ));

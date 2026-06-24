@@ -65,6 +65,8 @@ export interface EditorRepeat {
 /** マップ上に配置する1つのクエストノード */
 export interface EditorNode {
   id: string
+  /** クエストラインID (保存済みノードのみ設定される) */
+  questlineId?: string
   x: number
   y: number
   icon: string

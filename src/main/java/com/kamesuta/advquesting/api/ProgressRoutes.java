@@ -6,7 +6,6 @@ import com.kamesuta.advquesting.data.ProgressManager;
 import com.kamesuta.advquesting.db.ProgressDao;
 import com.kamesuta.advquesting.db.SessionDao;
 import io.javalin.Javalin;
-import io.javalin.http.BadRequestResponse;
 import io.javalin.http.ForbiddenResponse;
 import io.javalin.http.NotFoundResponse;
 
@@ -55,12 +54,14 @@ public class ProgressRoutes {
             }
         });
 
-        // GET /api/progress/:questId — 特定クエストの進捗
-        app.get("/api/progress/{questId}", ctx -> {
+        // GET /api/progress/:questlineId/:questId — 特定クエストの進捗
+        app.get("/api/progress/{questlineId}/{questId}", ctx -> {
             SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
-            int questId = parseId(ctx.pathParam("questId"));
+            String questlineId = ctx.pathParam("questlineId");
+            String questId = ctx.pathParam("questId");
             try {
-                ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(session.playerUuid(), questId);
+                ProgressDao.ProgressRecord record = progressDao.findByPlayerAndQuest(
+                    session.playerUuid(), questlineId, questId);
                 if (record == null) throw new NotFoundResponse("No progress record");
                 ctx.json(toMap(record));
             } catch (SQLException e) {
@@ -68,13 +69,15 @@ public class ProgressRoutes {
             }
         });
 
-        // POST /api/progress/:questId/condition/:conditionId/complete — チェックマーク条件を手動完了
-        app.post("/api/progress/{questId}/condition/{conditionId}/complete", ctx -> {
+        // POST /api/progress/:questlineId/:questId/condition/:conditionId/complete — チェックマーク条件を手動完了
+        app.post("/api/progress/{questlineId}/{questId}/condition/{conditionId}/complete", ctx -> {
             SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
-            int questId = parseId(ctx.pathParam("questId"));
+            String questlineId = ctx.pathParam("questlineId");
+            String questId = ctx.pathParam("questId");
             String conditionId = ctx.pathParam("conditionId");
             try {
-                boolean ok = progressManager.completeCheckmarkCondition(session.playerUuid(), questId, conditionId);
+                boolean ok = progressManager.completeCheckmarkCondition(
+                    session.playerUuid(), questlineId, questId, conditionId);
                 if (!ok) throw new ForbiddenResponse("Condition not found, not a checkmark, or already completed");
                 ctx.json(Map.of("status", "completed"));
             } catch (SQLException e) {
@@ -82,12 +85,14 @@ public class ProgressRoutes {
             }
         });
 
-        // POST /api/progress/:questId/deliver — 納品 (インベントリからアイテム消費して進捗更新)
-        app.post("/api/progress/{questId}/deliver", ctx -> {
+        // POST /api/progress/:questlineId/:questId/deliver — 納品 (インベントリからアイテム消費して進捗更新)
+        app.post("/api/progress/{questlineId}/{questId}/deliver", ctx -> {
             SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
-            int questId = parseId(ctx.pathParam("questId"));
+            String questlineId = ctx.pathParam("questlineId");
+            String questId = ctx.pathParam("questId");
             try {
-                ProgressManager.DeliveryResult result = progressManager.deliverItems(session.playerUuid(), questId);
+                ProgressManager.DeliveryResult result = progressManager.deliverItems(
+                    session.playerUuid(), questlineId, questId);
                 ctx.json(Map.of(
                     "delivered", result.delivered(),
                     "failed", result.failed()
@@ -97,12 +102,13 @@ public class ProgressRoutes {
             }
         });
 
-        // POST /api/progress/:questId/claim — 報酬受け取り
-        app.post("/api/progress/{questId}/claim", ctx -> {
+        // POST /api/progress/:questlineId/:questId/claim — 報酬受け取り
+        app.post("/api/progress/{questlineId}/{questId}/claim", ctx -> {
             SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
-            int questId = parseId(ctx.pathParam("questId"));
+            String questlineId = ctx.pathParam("questlineId");
+            String questId = ctx.pathParam("questId");
             try {
-                int claimed = progressManager.claimReward(session.playerUuid(), questId);
+                int claimed = progressManager.claimReward(session.playerUuid(), questlineId, questId);
                 if (claimed == 0) throw new ForbiddenResponse("Quest not completed or no pending rewards");
                 ctx.json(Map.of("status", "claimed", "count", claimed));
             } catch (SQLException e) {
@@ -121,6 +127,7 @@ public class ProgressRoutes {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", r.id());
         m.put("playerUuid", r.playerUuid());
+        m.put("questlineId", r.questlineId());
         m.put("questId", r.questId());
         m.put("progress", progressList);
         m.put("completed", r.completed());
@@ -133,13 +140,5 @@ public class ProgressRoutes {
         // unlimited は完了直後に completed=0 へリセットされるため completed では判定できない。
         m.put("rewardClaimable", r.pendingRewards() > 0 && !r.rewardClaimed());
         return m;
-    }
-
-    private static int parseId(String s) {
-        try {
-            return Integer.parseInt(s);
-        } catch (NumberFormatException e) {
-            throw new BadRequestResponse("Invalid id");
-        }
     }
 }

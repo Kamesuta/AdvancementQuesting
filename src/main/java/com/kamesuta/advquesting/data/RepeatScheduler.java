@@ -25,15 +25,15 @@ public class RepeatScheduler {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final TypeReference<List<Map<String, Object>>> LIST_MAP_TYPE = new TypeReference<>() {};
 
-    private final QuestManager questManager;
+    private final QuestlineManager questlineManager;
     private final ProgressDao progressDao;
     private final NotificationRoutes notificationRoutes;
     private final Logger log;
     private ScheduledExecutorService executor;
 
-    public RepeatScheduler(JavaPlugin plugin, QuestManager questManager,
+    public RepeatScheduler(JavaPlugin plugin, QuestlineManager questlineManager,
                            ProgressDao progressDao, NotificationRoutes notificationRoutes) {
-        this.questManager = questManager;
+        this.questlineManager = questlineManager;
         this.progressDao = progressDao;
         this.notificationRoutes = notificationRoutes;
         this.log = plugin.getLogger();
@@ -56,7 +56,7 @@ public class RepeatScheduler {
 
     private void tick() {
         try {
-            List<Quest> quests = questManager.loadAll();
+            List<Quest> quests = questlineManager.loadAll();
             for (Quest quest : quests) {
                 if (!"public".equals(quest.status)) continue;
                 Quest.RepeatConfig repeat = quest.repeat;
@@ -64,7 +64,7 @@ public class RepeatScheduler {
                 if (!"schedule".equals(repeat.type)) continue;
                 if (repeat.cron == null) continue;
 
-                List<ProgressDao.ProgressRecord> records = progressDao.findByQuest(quest.id);
+                List<ProgressDao.ProgressRecord> records = progressDao.findByQuest(quest.questlineId, quest.id);
                 for (ProgressDao.ProgressRecord rec : records) {
                     if (!rec.completed()) continue;
                     String lastCompletedAt = rec.completedAt();
@@ -89,8 +89,8 @@ public class RepeatScheduler {
                         } catch (Exception ex) {
                             newProgressJson = "[]";
                         }
-                        progressDao.resetForRepeatWithProgress(rec.playerUuid(), quest.id, newProgressJson);
-                        notificationRoutes.sendRepeatReset(rec.playerUuid(), quest.id);
+                        progressDao.resetForRepeatWithProgress(rec.playerUuid(), quest.questlineId, quest.id, newProgressJson);
+                        notificationRoutes.sendRepeatReset(rec.playerUuid(), quest.questlineId, quest.id);
                     }
                 }
             }
