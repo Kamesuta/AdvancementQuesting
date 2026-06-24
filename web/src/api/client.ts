@@ -22,8 +22,24 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (res.status === 204) return undefined as T
 
-  const data = await res.json()
-  if (!res.ok) throw new ApiError(res.status, data.error ?? 'Unknown error')
+  // エラー時にプレーンテキスト本文 (Javalin の HttpResponseException 等) が
+  // 返ることがあるため、JSON 以外でも本文をメッセージとして拾えるようにする
+  const raw = await res.text()
+  let data: unknown = null
+  try {
+    data = raw ? JSON.parse(raw) : null
+  } catch {
+    data = null
+  }
+
+  if (!res.ok) {
+    let message = raw || 'Unknown error'
+    if (data && typeof data === 'object' && 'error' in data) {
+      const err = (data as { error?: unknown }).error
+      if (typeof err === 'string') message = err
+    }
+    throw new ApiError(res.status, message)
+  }
   return data as T
 }
 

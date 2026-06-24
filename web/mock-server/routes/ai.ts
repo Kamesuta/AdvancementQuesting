@@ -21,9 +21,18 @@ const THEMES = [
   },
 ]
 
+const DEFAULT_PROMPT = 'あなたはマインクラフトのクエスト作成を補助するアシスタントです。\n（モック用デフォルトプロンプト）'
+
+// 編集者全員で共有するプロンプト (本番は prompt.txt、モックはメモリ保持)
+let sharedPrompt = DEFAULT_PROMPT
+
+function isEditor(req: AuthRequest): boolean {
+  return req.playerRole === 'editor' || req.playerRole === 'admin'
+}
+
 // POST /api/ai/quest-suggest — editor 以上
 router.post('/quest-suggest', requireAuth, (req: AuthRequest, res) => {
-  if (req.playerRole !== 'editor' && req.playerRole !== 'admin') {
+  if (!isEditor(req)) {
     res.status(403).json({ error: 'Forbidden' })
     return
   }
@@ -32,6 +41,9 @@ router.post('/quest-suggest', requireAuth, (req: AuthRequest, res) => {
     tasks?: string[]
     rewards?: string[]
     messages?: { role: string; content: string }[]
+    currentTitle?: string
+    currentSubtitle?: string
+    currentDescription?: string
   }
   const tasks = Array.isArray(body.tasks) ? body.tasks : []
   const msgLen = Array.isArray(body.messages) ? body.messages.length : 0
@@ -39,12 +51,37 @@ router.post('/quest-suggest', requireAuth, (req: AuthRequest, res) => {
   const theme = THEMES[msgLen % THEMES.length]!
   const taskHint = tasks.length > 0 ? `（目標: ${tasks[0]}）` : ''
 
+  // 既存タイトルがあれば「修正案」であることを反映する
+  const existing = (body.currentTitle ?? '').trim()
+  const isRevision = existing !== '' && existing !== '新規クエスト'
+  const prefix = isRevision ? '【改】' : ''
+
   const candidates = theme.titles.map((title) => ({
-    title,
-    description: `${theme.tone}${taskHint}`,
+    title: `${prefix}${title}`,
+    description: `${theme.tone}${taskHint}${isRevision ? `（「${existing}」をもとに改善）` : ''}`,
   }))
 
   res.json({ candidates })
+})
+
+// GET /api/ai/prompt — 現在のプロンプトを取得 (editor 以上)
+router.get('/prompt', requireAuth, (req: AuthRequest, res) => {
+  if (!isEditor(req)) {
+    res.status(403).json({ error: 'Forbidden' })
+    return
+  }
+  res.json({ prompt: sharedPrompt })
+})
+
+// PUT /api/ai/prompt — プロンプトを保存 (editor 以上・全員で共有)
+router.put('/prompt', requireAuth, (req: AuthRequest, res) => {
+  if (!isEditor(req)) {
+    res.status(403).json({ error: 'Forbidden' })
+    return
+  }
+  const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt : ''
+  sharedPrompt = prompt
+  res.json({ prompt })
 })
 
 export default router

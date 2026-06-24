@@ -178,6 +178,9 @@ export function QuestEditorModal({
     <AiAssistPanel
       tasks={(node.tasks ?? []).map((t) => getDisplayText(t, 'task', lang))}
       rewards={(node.rewards ?? []).map((r) => getDisplayText(r, 'reward', lang))}
+      currentTitle={node.title}
+      currentSubtitle={node.subtitle}
+      currentDescription={node.description}
       onAdopt={adoptSuggestion}
       onClose={() => setShowAiPanel(false)}
     />
