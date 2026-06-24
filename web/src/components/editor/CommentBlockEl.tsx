@@ -16,7 +16,7 @@ function withAlpha(hex: string, alpha: number): string {
   return hex + Math.round(alpha).toString(16).padStart(2, '0')
 }
 
-export type ResizeDir = 'right' | 'bottom' | 'left' | 'se'
+export type ResizeDir = 'right' | 'bottom' | 'left' | 'top' | 'se'
 
 interface CommentBlockElProps {
   comment: EditorComment
@@ -184,6 +184,12 @@ export function CommentBlockEl({
       {/* リサイズハンドル群 (canEdit 時のみ) */}
       {canEdit && (
         <>
+          {/* 上端 (ヘッダーより高 z-index で最上部を覆う) */}
+          <div
+            className="absolute top-0 left-0 right-0 cursor-n-resize"
+            style={{ height: 6, zIndex: 2, touchAction: 'none' }}
+            {...resizeHandle('top')}
+          />
           {/* 右端 */}
           <div
             className="absolute top-0 right-0 cursor-e-resize"

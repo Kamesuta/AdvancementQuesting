@@ -763,6 +763,7 @@ export default function EditorPage() {
       if (dir === 'right' || dir === 'se') newW = Math.max(80, origW + dx)
       if (dir === 'bottom' || dir === 'se') newH = Math.max(60, origH + dy)
       if (dir === 'left') { newW = Math.max(80, origW - dx); newX = origX + origW - newW }
+      if (dir === 'top') { newH = Math.max(60, origH - dy); newY = origY + origH - newH }
       setComments(prev => prev.map(c =>
         c.id === resizingCommentId ? { ...c, x: newX, y: newY, width: newW, height: newH } : c
       ))
@@ -925,6 +926,7 @@ export default function EditorPage() {
       if (dir === 'right' || dir === 'se') newW = Math.max(80, origW + dx)
       if (dir === 'bottom' || dir === 'se') newH = Math.max(60, origH + dy)
       if (dir === 'left') { newW = Math.max(80, origW - dx); newX = origX + origW - newW }
+      if (dir === 'top') { newH = Math.max(60, origH - dy); newY = origY + origH - newH }
       setComments((prev) => prev.map((c) =>
         c.id === resizingCommentId ? { ...c, x: newX, y: newY, width: newW, height: newH } : c))
       return
