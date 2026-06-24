@@ -18,22 +18,21 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
-/**
- * クエスト作成補助AI。タスク／報酬の文脈と任意のヒント（チャット）から、
- * クエスト名＋説明の候補を OpenAI に提案させる。APIキーはサーバー側に秘匿する。
- */
 public class AiRoutes {
 
-    private static final String OPENAI_URL = "https://api.openai.com/v1/chat/completions";
+    private static final String OPENAI_URL = "https://api.openai.com/v1/responses";
+
     private static final String SYSTEM_PROMPT = """
             あなたはマインクラフトのクエスト作成を補助するアシスタントです。
             与えられたタスク（達成条件）と報酬の内容を踏まえ、プレイヤーがワクワクする
             クエスト名と説明文を日本語で提案してください。
-            ファンタジー世界観とユーモアを大切にし、物語を進めているような没入感のある表現にします。
-            例えば「マナ理論」のような世界観を感じさせる言葉を取り入れると魅力的です。
-            クエスト名は20文字程度まで、説明文は60〜120文字程度で、内容はタスクと矛盾しないようにします。
-            必ず次のJSON形式のみを出力してください（前後に文章を付けない）:
-            {"candidates":[{"title":"...","description":"..."},{"title":"...","description":"..."},{"title":"...","description":"..."}]}
+
+            ファンタジー世界観とユーモアを大切にし、物語を進めているような
+            没入感のある表現にしてください。
+
+            クエスト名は20文字程度まで、説明文は60〜120文字程度で、
+            内容はタスクと矛盾しないようにしてください。
+
             候補は必ず3件、互いに毛色の違うものにしてください。
             """;
 
@@ -49,15 +48,12 @@ public class AiRoutes {
         this.sessionDao = sessionDao;
     }
 
-    /** リクエストボディ。messages は省略可（リロール/再提案時の会話履歴）。 */
-    public record SuggestRequest(List<String> tasks, List<String> rewards, List<ChatMsg> messages) {
-    }
-
-    public record ChatMsg(String role, String content) {
-    }
+    public record SuggestRequest(List<String> tasks, List<String> rewards, List<ChatMsg> messages) {}
+    public record ChatMsg(String role, String content) {}
+    public record Candidate(String title, String description) {}
+    public record CandidateResponse(List<Candidate> candidates) {}
 
     public void register(Javalin app) {
-        // POST /api/ai/quest-suggest — editor 以上
         app.post("/api/ai/quest-suggest", ctx -> {
             SessionDao.SessionInfo session = AuthMiddleware.requireAuth(ctx, sessionDao);
             if (!session.isEditor()) throw new ForbiddenResponse();
@@ -65,13 +61,15 @@ public class AiRoutes {
             String apiKey = plugin.getConfig().getString("openai-api-key", "");
             if (apiKey == null || apiKey.isBlank()) {
                 throw new HttpResponseException(503,
-                        "AI機能が無効です（config.yml に openai-api-key を設定してください）", Map.of());
+                        "AI機能が無効です（config.yml に openai-api-key を設定してください）",
+                        Map.of());
             }
 
             SuggestRequest req = ctx.bodyAsClass(SuggestRequest.class);
-            String model = plugin.getConfig().getString("openai-model", "gpt-5.4-nano");
+            String model = plugin.getConfig().getString("openai-model", "gpt-5-mini");
 
             JsonNode candidates = callOpenAi(apiKey, model, req);
+
             ObjectNode result = mapper.createObjectNode();
             result.set("candidates", candidates);
             ctx.json(result);
@@ -79,25 +77,68 @@ public class AiRoutes {
     }
 
     private JsonNode callOpenAi(String apiKey, String model, SuggestRequest req) {
-        // messages を組み立てる
-        ArrayNode messages = mapper.createArrayNode();
-        messages.add(msg("system", SYSTEM_PROMPT));
-        messages.add(msg("user", buildContext(req)));
+        ArrayNode input = mapper.createArrayNode();
+
+        input.add(msg("system", SYSTEM_PROMPT));
+        input.add(msg("user", buildContext(req)));
+
         if (req.messages() != null) {
             for (ChatMsg m : req.messages()) {
-                String role = "assistant".equals(m.role()) ? "assistant" : "user";
-                messages.add(msg(role, m.content() == null ? "" : m.content()));
+                input.add(msg(
+                        "assistant".equals(m.role()) ? "assistant" : "user",
+                        m.content() == null ? "" : m.content()
+                ));
             }
         }
 
         ObjectNode body = mapper.createObjectNode();
         body.put("model", model);
-        body.set("messages", messages);
-        ObjectNode responseFormat = mapper.createObjectNode();
-        responseFormat.put("type", "json_object");
-        body.set("response_format", responseFormat);
+        body.set("input", input);
 
-        HttpResponse<String> resp;
+        ObjectNode text = mapper.createObjectNode();
+        ObjectNode format = mapper.createObjectNode();
+
+        format.put("type", "json_schema");
+        format.put("name", "quest_candidates");
+        format.put("strict", true);
+
+        ObjectNode schema = mapper.createObjectNode();
+        schema.put("type", "object");
+
+        ObjectNode properties = mapper.createObjectNode();
+
+        ObjectNode candidates = mapper.createObjectNode();
+        candidates.put("type", "array");
+
+        ObjectNode item = mapper.createObjectNode();
+        item.put("type", "object");
+
+        ObjectNode itemProps = mapper.createObjectNode();
+        itemProps.putObject("title").put("type", "string");
+        itemProps.putObject("description").put("type", "string");
+
+        item.set("properties", itemProps);
+
+        ArrayNode itemRequired = mapper.createArrayNode();
+        itemRequired.add("title");
+        itemRequired.add("description");
+        item.set("required", itemRequired);
+        item.put("additionalProperties", false);
+
+        candidates.set("items", item);
+        properties.set("candidates", candidates);
+
+        schema.set("properties", properties);
+
+        ArrayNode required = mapper.createArrayNode();
+        required.add("candidates");
+        schema.set("required", required);
+        schema.put("additionalProperties", false);
+
+        format.set("schema", schema);
+        text.set("format", format);
+        body.set("text", text);
+
         try {
             HttpRequest httpReq = HttpRequest.newBuilder()
                     .uri(URI.create(OPENAI_URL))
@@ -106,54 +147,87 @@ public class AiRoutes {
                     .header("Authorization", "Bearer " + apiKey)
                     .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
                     .build();
-            resp = httpClient.send(httpReq, HttpResponse.BodyHandlers.ofString());
-        } catch (Exception e) {
-            plugin.getLogger().warning("OpenAI への接続に失敗しました: " + e.getMessage());
-            throw new HttpResponseException(502, "AI提案の生成に失敗しました（接続エラー）", Map.of());
-        }
 
-        if (resp.statusCode() / 100 != 2) {
-            plugin.getLogger().warning("OpenAI がエラーを返しました (" + resp.statusCode() + "): " + resp.body());
-            throw new HttpResponseException(502, "AI提案の生成に失敗しました（OpenAIエラー）", Map.of());
-        }
+            HttpResponse<String> resp =
+                    httpClient.send(httpReq, HttpResponse.BodyHandlers.ofString());
 
-        try {
-            JsonNode root = mapper.readTree(resp.body());
-            String content = root.path("choices").path(0).path("message").path("content").asText("");
-            JsonNode parsed = mapper.readTree(content);
-            JsonNode candidates = parsed.path("candidates");
-            if (!candidates.isArray() || candidates.isEmpty()) {
-                throw new IllegalStateException("candidates が空です");
+            if (resp.statusCode() / 100 != 2) {
+                plugin.getLogger().warning(
+                        "OpenAI がエラーを返しました (" +
+                                resp.statusCode() + "): " + resp.body());
+                throw new HttpResponseException(
+                        502,
+                        "AI提案の生成に失敗しました（OpenAIエラー）",
+                        Map.of()
+                );
             }
-            return candidates;
+
+            JsonNode root = mapper.readTree(resp.body());
+
+            String json = root.path("output")
+                    .path(0)
+                    .path("content")
+                    .path(0)
+                    .path("text")
+                    .asText();
+
+            CandidateResponse parsed =
+                    mapper.readValue(json, CandidateResponse.class);
+
+            return mapper.valueToTree(parsed.candidates());
+
+        } catch (HttpResponseException e) {
+            throw e;
         } catch (Exception e) {
-            plugin.getLogger().warning("OpenAI 応答の解析に失敗しました: " + e.getMessage());
-            throw new HttpResponseException(502, "AI提案の解析に失敗しました", Map.of());
+            plugin.getLogger().warning(
+                    "OpenAI 応答の解析に失敗しました: " + e.getMessage());
+            throw new HttpResponseException(
+                    502,
+                    "AI提案の生成に失敗しました",
+                    Map.of()
+            );
         }
     }
 
     private static String buildContext(SuggestRequest req) {
         StringBuilder sb = new StringBuilder();
+
         sb.append("以下のクエストにふさわしいクエスト名と説明文を提案してください。\n\n");
+
         sb.append("【タスク（達成条件）】\n");
         if (req.tasks() != null && !req.tasks().isEmpty()) {
-            for (String t : req.tasks()) sb.append("- ").append(t).append("\n");
+            for (String t : req.tasks()) {
+                sb.append("- ").append(t).append("\n");
+            }
         } else {
             sb.append("（未設定）\n");
         }
+
         sb.append("\n【報酬】\n");
         if (req.rewards() != null && !req.rewards().isEmpty()) {
-            for (String r : req.rewards()) sb.append("- ").append(r).append("\n");
+            for (String r : req.rewards()) {
+                sb.append("- ").append(r).append("\n");
+            }
         } else {
             sb.append("（未設定）\n");
         }
+
         return sb.toString();
     }
 
     private ObjectNode msg(String role, String content) {
-        ObjectNode node = mapper.createObjectNode();
-        node.put("role", role);
-        node.put("content", content);
-        return node;
+        ObjectNode msg = mapper.createObjectNode();
+        msg.put("role", role);
+
+        ArrayNode contentArray = mapper.createArrayNode();
+
+        ObjectNode text = mapper.createObjectNode();
+        text.put("type", "input_text");
+        text.put("text", content);
+
+        contentArray.add(text);
+        msg.set("content", contentArray);
+
+        return msg;
     }
 }
