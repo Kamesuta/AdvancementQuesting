@@ -60,6 +60,7 @@ export interface ScoreboardCondition {
   type: 'scoreboard'
   objective: string
   score: number
+  label?: string
 }
 
 export type Condition = AdvancementCondition | ItemCondition | DeliveryCondition | CheckmarkCondition | StatCondition | LocationCondition | ScoreboardCondition

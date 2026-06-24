@@ -76,7 +76,7 @@ function nodeToApiBody(node: EditorNode, edgeList: EditorEdge[]) {
     if (t.type === 'checkmark') return { id: t.id, type: 'checkmark' as const, label: ta.label ?? t.value ?? '' }
     if (t.type === 'stat') return { id: t.id, type: 'stat' as const, statType: ta.statType ?? '', statId: ta.statId ?? '', count: ta.count ?? 1 }
     if (t.type === 'location') return { id: t.id, type: 'location' as const, x: ta.locX ?? 0, y: ta.locY ?? 0, z: ta.locZ ?? 0, dimension: ta.dimension ?? 'overworld', radius: ta.radius ?? 10 }
-    if (t.type === 'scoreboard') return { id: t.id, type: 'scoreboard' as const, objective: ta.objective ?? '', score: ta.score ?? 1 }
+    if (t.type === 'scoreboard') return { id: t.id, type: 'scoreboard' as const, objective: ta.objective ?? '', score: ta.score ?? 1, ...(t.value ? { label: t.value } : {}) }
     return { id: t.id, type: 'checkmark' as const, label: t.value }
   })
   const rewards: Reward[] = (node.rewards ?? []).map((r) => {
