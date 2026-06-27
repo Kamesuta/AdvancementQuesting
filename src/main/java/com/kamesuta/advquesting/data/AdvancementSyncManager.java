@@ -290,6 +290,7 @@ public class AdvancementSyncManager {
     }
 
     private void loadQuestAdvancement(Quest quest) {
+        removeAdvancementSafe(questKey(quest.id));
         try {
             Bukkit.getUnsafe().loadAdvancement(questKey(quest.id), buildAdvancementJson(quest));
         } catch (Exception e) {
@@ -434,10 +435,41 @@ public class AdvancementSyncManager {
     }
 
     private void removeAdvancementSafe(NamespacedKey key) {
+        // Bukkit API で削除を試みる (ディスクのデータパックファイルを削除するだけ)
         try {
             Bukkit.getUnsafe().removeAdvancement(key);
+        } catch (Exception ignored) {}
+        // Paper 1.21+ の removeAdvancement はファイル削除のみで in-memory レジストリに反映されない。
+        // loadAdvancement() は ServerAdvancementManager.advancements (ImmutableMap) を
+        // putAll + 新エントリ で差し替えるため、除去も同様に新しいマップで差し替える必要がある。
+        try {
+            Object server = Class.forName("net.minecraft.server.MinecraftServer")
+                    .getMethod("getServer").invoke(null);
+            Object advManager = server.getClass().getMethod("getAdvancements").invoke(server);
+            // Paper 1.21 では ResourceLocation は net.minecraft.resources.Identifier として再マップされる。
+            // CraftNamespacedKey.toMinecraft() を経由して正しいクラスのインスタンスを取得する。
+            Object resourceLocation = Class.forName("org.bukkit.craftbukkit.util.CraftNamespacedKey")
+                    .getMethod("toMinecraft", NamespacedKey.class)
+                    .invoke(null, key);
+            // "advancements" フィールドをクラス階層から探す
+            java.lang.reflect.Field advField = null;
+            for (Class<?> c = advManager.getClass(); c != null; c = c.getSuperclass()) {
+                try {
+                    advField = c.getDeclaredField("advancements");
+                    break;
+                } catch (NoSuchFieldException ignored2) {}
+            }
+            if (advField == null) return;
+            advField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            java.util.Map<Object, Object> existing = (java.util.Map<Object, Object>) advField.get(advManager);
+            if (existing == null || !existing.containsKey(resourceLocation)) return;
+            // ImmutableMap は変更不可なので新しい LinkedHashMap に差し替える
+            java.util.Map<Object, Object> newMap = new java.util.LinkedHashMap<>(existing);
+            newMap.remove(resourceLocation);
+            advField.set(advManager, newMap);
         } catch (Exception e) {
-            // 存在しない場合は無視
+            log.fine("NMS advancement removal skipped: " + e.getMessage());
         }
     }
 
