@@ -49,7 +49,36 @@ function wsl(cmd: string): string {
 }
 
 function sh(cmd: string, cwd?: string): string {
-  return execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd }).trim()
+  return execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], cwd, env: nativeEnv() }).trim()
+}
+
+function nativeEnv(): NodeJS.ProcessEnv {
+  // gl/ANGLE build scripts call `python` directly; create a wrapper script.
+  // macOS /usr/bin/python3 is a shim: when argv[0]="python" it fails with xcode-select error.
+  // We use the real CommandLineTools binary (or brew) via a shell script wrapper.
+  const pyBin = join(CACHE_DIR, 'bin')
+  mkdirSync(pyBin, { recursive: true })
+  const pyShim = join(pyBin, 'python')
+  if (!existsSync(pyShim)) {
+    const candidates = [
+      '/Library/Developer/CommandLineTools/usr/bin/python3',
+      '/opt/homebrew/bin/python3',
+    ]
+    const realPy3 = candidates.find(p => existsSync(p))
+      ?? execSync('which python3', { encoding: 'utf8' }).trim()
+    writeFileSync(pyShim, `#!/bin/sh\nexec "${realPy3}" "$@"\n`, { mode: 0o755 })
+  }
+  // Homebrew installs pkg-config/cairo/pango etc. to /opt/homebrew/bin — add it to PATH
+  const brewBin = '/opt/homebrew/bin'
+  return { ...process.env, PATH: `${pyBin}:${brewBin}:${process.env.PATH}` }
+}
+
+function ensureNativePackageJson(): void {
+  const pkgJson = join(NATIVE_WORK_DIR, 'package.json')
+  if (!existsSync(pkgJson)) {
+    mkdirSync(NATIVE_WORK_DIR, { recursive: true })
+    writeFileSync(pkgJson, JSON.stringify({ name: 'mc-render-native', version: '1.0.0', private: true }, null, 2))
+  }
 }
 
 async function downloadJar(): Promise<void> {
@@ -123,12 +152,14 @@ function copyRenderedToWindows(wslOutDir: string): string {
 function setupNative(): void {
   console.log('\n[ネイティブセットアップ]')
   mkdirSync(NATIVE_WORK_DIR, { recursive: true })
+  ensureNativePackageJson()
   const pkgDir = join(NATIVE_WORK_DIR, 'node_modules', '@blackblockrocks')
   if (!existsSync(pkgDir)) {
     console.log('  @blackblockrocks/minecraft-render をインストール中...')
     execSync('npm install @blackblockrocks/minecraft-render', {
       cwd: NATIVE_WORK_DIR,
       stdio: 'inherit',
+      env: nativeEnv(),
     })
     console.log('  インストール完了')
   } else {
@@ -140,6 +171,8 @@ function renderBlocksNative(): string {
   console.log('\n[ブロックレンダリング (ネイティブ)]')
   const outDir = join(NATIVE_WORK_DIR, 'out')
   mkdirSync(join(outDir, 'block'), { recursive: true })
+  mkdirSync(join(outDir, 'minecraft:block'), { recursive: true })
+  mkdirSync(join(outDir, 'minecraft:item'), { recursive: true })
   const renderBin = join(NATIVE_WORK_DIR, 'node_modules', '.bin', 'minecraft-render')
   console.log('  レンダリング実行中（数秒かかります）...')
   let log = ''
