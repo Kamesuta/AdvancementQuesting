@@ -2,7 +2,7 @@
 
 ## Setup
 
-When starting a session in a worktree, run `/setup-worktree` first. It symlinks `web/public` and runs `npm install`. Safe to run multiple times.
+Setup runs automatically at session start (symlinks `web/public` and runs `npm install`). Script: `.claude/scripts/setup.ps1`.
 
 At the end of a session, run `/worktree-build` to build without deploying to `run/`.
 
