@@ -1,0 +1,188 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (assets + Maven)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            web/asset-atlas-builder/package-lock.json
+
+      - name: Install web dependencies
+        run: npm ci
+        working-directory: web
+
+      - name: Install atlas builder dependencies
+        run: npm ci
+        working-directory: web/asset-atlas-builder
+
+      - name: Cache Minecraft assets
+        uses: actions/cache@v4
+        with:
+          path: |
+            web/public/mc
+            web/asset-atlas-builder/render-blocks-cache
+          key: mc-assets-1.21.11-${{ runner.os }}
+
+      - name: Install xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Build Minecraft assets (atlas)
+        run: xvfb-run -a npm run build:assets
+        working-directory: web
+
+      - name: Maven package
+        run: mvn -B clean package -DskipTests
+
+      - name: Locate built JAR
+        id: jar
+        run: |
+          jar=$(ls target/*.jar | grep -v original | head -1)
+          echo "path=$jar" >> "$GITHUB_OUTPUT"
+          cp "$jar" AdvancementQuesting.jar
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-jar
+          path: AdvancementQuesting.jar
+          if-no-files-found: error
+
+  frontend-tests:
+    name: Frontend E2E (Playwright)
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        run: npm ci
+        working-directory: web
+
+      - name: Setup Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: web
+
+      - name: Run Playwright E2E
+        run: npm run test:e2e
+        working-directory: web
+
+  mc-tests:
+    name: Minecraft E2E (Mineflayer)
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: mc-tests/package-lock.json
+
+      - name: Install mc-tests dependencies
+        run: npm ci
+        working-directory: mc-tests
+
+      - name: Download JAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: plugin-jar
+          path: target-download
+
+      - name: Place JAR for mc-tests
+        run: |
+          mkdir -p target
+          cp target-download/AdvancementQuesting.jar target/AdvancementQuesting.jar
+
+      - name: Cache Paper JAR
+        uses: actions/cache@v4
+        with:
+          path: mc-tests/run/paper.jar
+          key: paper-1.21.11-${{ runner.os }}
+
+      - name: Run Mineflayer E2E
+        run: npm run test:no-build
+        working-directory: mc-tests
+
+  release:
+    name: Release
+    needs: [build, frontend-tests, mc-tests]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download JAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: plugin-jar
+          path: release
+
+      - name: Compute release name and flags
+        id: rel
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            tag="${GITHUB_REF#refs/tags/}"
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "name=$tag" >> "$GITHUB_OUTPUT"
+          else
+            ts=$(TZ=UTC-9 date +'%Y%m%d.%H%M%S')
+            short=$(git rev-parse --short HEAD)
+            tag="build-$ts-$short"
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "name=$tag" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.rel.outputs.tag }}
+          name: ${{ steps.rel.outputs.name }}
+          generate_release_notes: true
+          prerelease: ${{ steps.rel.outputs.prerelease }}
+          files: release/AdvancementQuesting.jar
