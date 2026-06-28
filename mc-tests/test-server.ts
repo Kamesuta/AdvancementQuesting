@@ -451,7 +451,21 @@ app.get('/test-console', (_req: Request, res: Response) => {
   res.sendFile(join(__dirname, 'public', 'test-console.html'))
 })
 
-const TAILSCALE_HOST = process.env.TAILSCALE_HOST ?? 'kamesuta-pc.tail2dfeb3.ts.net'
+const TAILSCALE_HOST = process.env.TAILSCALE_HOST ?? (() => {
+  const candidates = [
+    '/Applications/Tailscale.app/Contents/MacOS/Tailscale',
+    '/usr/local/bin/tailscale',
+    '/usr/bin/tailscale',
+    'tailscale',
+  ]
+  for (const bin of candidates) {
+    try {
+      const json = JSON.parse(execSync(`${bin} status --json`, { stdio: ['ignore', 'pipe', 'ignore'] }).toString())
+      return (json.Self?.DNSName as string | undefined)?.replace(/\.$/, '') ?? null
+    } catch { continue }
+  }
+  return null
+})()
 
 const server = createServer(app)
 server.listen(PORT, () => {
