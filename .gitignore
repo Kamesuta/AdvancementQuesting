@@ -185,6 +185,7 @@ mc-tests/.console-*.lock
 
 # Claude Worktree
 .claude/worktrees/
+.dev/worktree/
 
 # マイクラテストサーバー
 run/
