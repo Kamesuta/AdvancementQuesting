@@ -59,6 +59,13 @@ jobs:
         run: xvfb-run -a npm run build:assets
         working-directory: web
 
+      - name: Upload atlas assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: mc-atlas
+          path: web/public/mc
+          if-no-files-found: error
+
       - name: Maven package
         run: mvn -B clean package -DskipTests
 
@@ -97,6 +104,12 @@ jobs:
       - name: Setup Playwright browsers
         run: npx playwright install --with-deps chromium
         working-directory: web
+
+      - name: Download atlas assets
+        uses: actions/download-artifact@v4
+        with:
+          name: mc-atlas
+          path: web/public/mc
 
       - name: Run Playwright E2E
         run: npm run test:e2e

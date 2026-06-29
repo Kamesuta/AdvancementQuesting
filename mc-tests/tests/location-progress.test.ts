@@ -106,27 +106,13 @@ describe('座標条件達成', () => {
       20000,
     ).catch(() => null)
 
-    // 目標座標にテレポート
+    // 目標座標にテレポート。プラグインは PlayerTeleportEvent も location 判定の対象にするため、
+    // テレポートでエリアに入った時点で条件が完了する。チャンク読み込み等の遅延に備えて API をポーリングする。
     await rcon(`tp ${BOT_NAME} ${TARGET_X} ${TARGET_Y} ${TARGET_Z}`)
-    await new Promise(r => setTimeout(r, 1000))
-
-    // location 条件は PlayerMoveEvent (ブロック境界を跨いだ移動) でのみ判定される。
-    // テレポート単体 (PlayerTeleportEvent) は別 HandlerList のため発火しない。
-    // CI 環境ではチャンク読み込み/物理処理の遅延で 1 回の移動を取りこぼすことがあるため、
-    // 半径内で前後に小刻みに動いてブロック境界を繰り返し跨ぎつつ API をポーリングする。
-    let completed = false
-    for (let attempt = 0; attempt < 6 && !completed; attempt++) {
-      const dir = attempt % 2 === 0 ? 'forward' : 'back'
-      bot.setControlState(dir, true)
-      await new Promise(r => setTimeout(r, 500))
-      bot.setControlState(dir, false)
-      await new Promise(r => setTimeout(r, 1500))
-
+    for (let attempt = 0; attempt < 8; attempt++) {
+      await new Promise(r => setTimeout(r, 1000))
       const { status, body } = await apiRequest<QuestProgress>('GET', `/api/progress/${questId}`, { token })
-      if (status === 200 && body.completed) {
-        completed = true
-        break
-      }
+      if (status === 200 && body.completed) break
     }
 
     const mcChat = await chatPromise
