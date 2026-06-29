@@ -103,17 +103,31 @@ describe('座標条件達成', () => {
     const chatPromise = waitForChat(
       bot,
       t => t.includes('クエスト完了') || t.includes('✨'),
-      15000,
+      20000,
     ).catch(() => null)
 
     // 目標座標にテレポート
     await rcon(`tp ${BOT_NAME} ${TARGET_X} ${TARGET_Y} ${TARGET_Z}`)
-    // 少し動いて PlayerMoveEvent を確実に発火させる
-    await new Promise(r => setTimeout(r, 500))
-    bot.setControlState('forward', true)
-    await new Promise(r => setTimeout(r, 300))
-    bot.setControlState('forward', false)
-    await new Promise(r => setTimeout(r, 2000))
+    await new Promise(r => setTimeout(r, 1000))
+
+    // location 条件は PlayerMoveEvent (ブロック境界を跨いだ移動) でのみ判定される。
+    // テレポート単体 (PlayerTeleportEvent) は別 HandlerList のため発火しない。
+    // CI 環境ではチャンク読み込み/物理処理の遅延で 1 回の移動を取りこぼすことがあるため、
+    // 半径内で前後に小刻みに動いてブロック境界を繰り返し跨ぎつつ API をポーリングする。
+    let completed = false
+    for (let attempt = 0; attempt < 6 && !completed; attempt++) {
+      const dir = attempt % 2 === 0 ? 'forward' : 'back'
+      bot.setControlState(dir, true)
+      await new Promise(r => setTimeout(r, 500))
+      bot.setControlState(dir, false)
+      await new Promise(r => setTimeout(r, 1500))
+
+      const { status, body } = await apiRequest<QuestProgress>('GET', `/api/progress/${questId}`, { token })
+      if (status === 200 && body.completed) {
+        completed = true
+        break
+      }
+    }
 
     const mcChat = await chatPromise
     console.log('完了チャット:', mcChat ? JSON.stringify(mcChat) : '(届かず)')
