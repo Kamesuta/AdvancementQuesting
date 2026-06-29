@@ -12,7 +12,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import {
   resetProgress, setProgress, setConditionProgress, notifyProgressUpdate,
-  EDITOR_UUID, MOCK, PLAYER_UUID,
+  EDITOR_UUID, MOCK, PLAYER_UUID, resetAll,
 } from './helpers.js'
 
 // ---------------------------------------------------------------------------
@@ -37,6 +37,7 @@ async function loginAs(page: Page, token: 'demo-editor-token' | 'demo-player-tok
 test.use({ viewport: { width: 375, height: 667 } })
 
 test.beforeEach(async ({ page }) => {
+  await resetAll(page)
   await page.goto('/')
   await expect(page.locator('[data-node-id]').first()).toBeVisible({ timeout: 10000 })
 })
@@ -369,7 +370,8 @@ test('スマホ: cron入力欄に連続入力してもフォーカスが維持�
 
   const cron = page.getByPlaceholder('分 時 日 月 曜日')
   await cron.click()
-  await page.keyboard.press('Control+A')
+  // Control+A は macOS では行頭移動になるため DOM API で全選択 (クロスプラットフォーム)
+  await cron.evaluate((el) => (el as HTMLInputElement).select())
   // 1文字ずつ入力してもフォーカスが外れない（以前は再マウントで毎回キーボードが閉じた）
   await page.keyboard.type('30 8 * * *', { delay: 40 })
   await expect(cron).toBeFocused()

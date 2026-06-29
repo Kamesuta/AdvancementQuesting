@@ -7,9 +7,10 @@
  */
 
 import { test, expect } from '@playwright/test'
-import { loginAs, openQuestModal, setProgress, PLAYER_UUID, MOCK } from './helpers.js'
+import { loginAs, openQuestModal, setProgress, PLAYER_UUID, MOCK, resetAll } from './helpers.js'
 
 test.beforeEach(async ({ page }) => {
+  await resetAll(page)
   await page.goto('/')
   await expect(page.locator('[data-node-id]').first()).toBeVisible({ timeout: 10000 })
 })
@@ -113,8 +114,9 @@ test('RP-5: cron入力欄に連続入力してもフォーカスが外れない 
   await page.getByRole('button', { name: '時刻指定' }).click()
   const cron = page.getByPlaceholder('分 時 日 月 曜日')
   await cron.click()
+  // Control+A は macOS では行頭移動になるため DOM API で全選択 (クロスプラットフォーム)
+  await cron.evaluate((el) => (el as HTMLInputElement).select())
   // 1文字ずつ打ってもフォーカスが維持される (以前は再マウントで毎回外れていた)
-  await page.keyboard.press('Control+A')
   await page.keyboard.type('15 9 * * 1', { delay: 30 })
   await expect(cron).toBeFocused()
   await expect(cron).toHaveValue('15 9 * * 1')
